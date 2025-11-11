@@ -96,3 +96,34 @@ Proyecto desarrollado por el estudiante **SebRVV**
 Startup académica: **NutriTrack**
 
 ---
+
+# 🥗 NutriTrack – Guía rápida
+
+## 🚀 Comandos básicos
+```bash
+# Instalar dependencias
+npm install
+
+# Corregir vulnerabilidades
+npm audit fix
+
+# Levantar servidor local
+ng serve
+
+# Compilar para producción y revisar errores generales (Para Deploy)
+ng build
+
+# No olviden crear su carpeta environments con las variables necesarias [2 archivos Environment.ts y Environment.prod.ts]
+src/
+├── app/
+│   ├── components/
+│   ├── services/
+│   └── ...
+├── assets/
+├── environments/
+│   ├── environment.ts          ← entorno de desarrollo
+│   └── environment.prod.ts     ← entorno de producción
+├── index.html
+└── main.ts
+```
+
