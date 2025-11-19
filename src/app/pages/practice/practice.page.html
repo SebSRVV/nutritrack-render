@@ -3,30 +3,29 @@
     <header class="container pr-header">
       <div class="title-wrap">
         <lucide-icon [img]="HeartPulseIcon"></lucide-icon>
-        <h1>Módulo 4: Prácticas saludables</h1>
+        <h1>Modulo 4: Practicas saludables</h1>
       </div>
 
       <nav class="header-actions">
-        <button class="btn btn-primary" (click)="openSuggestions()">
+        <button class="btn btn-primary" (click)="openCustomForm()">
           <lucide-icon [img]="PlusIcon"></lucide-icon>
-          Añadir práctica
+          Crear practica
         </button>
       </nav>
     </header>
 
     <div class="container grid">
-
-      <!-- Mis prácticas -->
+      <!-- Mis practicas -->
       <section class="card">
         <div class="card-head">
-          <h2>Mis prácticas</h2>
+          <h2>Mis practicas</h2>
           <small class="muted">Marca el cumplimiento diario y mira tu frecuencia semanal.</small>
         </div>
 
         @if (myPractices().length === 0) {
           <div class="empty">
-            Aún no has agregado prácticas.
-            <button class="btn btn-link" (click)="openSuggestions()">Elegir sugeridas</button>
+            Aun no has agregado practicas.
+            <button class="btn btn-link" (click)="openCustomForm()">Crear nueva</button>
           </div>
         } @else {
           <ul class="practice-list">
@@ -46,7 +45,6 @@
                     <div class="p-desc">{{ p.description }}</div>
                   }
 
-                  <!-- Semana -->
                   <div class="week">
                     @for (m of marksFor(p.id); track m.date; let i = $index) {
                       <div class="day" [class.done]="m.done">
@@ -62,8 +60,8 @@
                   <button class="btn btn-chip" [disabled]="saving()" (click)="toggleToday(p)">
                     <lucide-icon [img]="CheckIcon"></lucide-icon> Hoy
                   </button>
-                  <button class="btn btn-ghost" (click)="openSuggestions(p.id)">
-                    <lucide-icon [img]="RefreshCwIcon"></lucide-icon> Reemplazar
+                  <button class="btn btn-ghost" (click)="openEditForm(p)" title="Editar práctica">
+                    <lucide-icon [img]="EditIcon"></lucide-icon> Editar
                   </button>
                   <button class="btn btn-ghost danger" (click)="removePractice(p.id)">
                     <lucide-icon [img]="Trash2Icon"></lucide-icon>
@@ -75,30 +73,132 @@
         }
       </section>
 
-      <!-- Sugerencias (panel flotante) -->
-      @if (showSuggestions()) {
+      <!-- Panel de formulario (crear/editar) -->
+      @if (showCustomForm()) {
         <section class="sheet">
           <div class="sheet-head">
-            <h3>{{ replacingId() ? 'Reemplazar práctica' : 'Agregar práctica' }}</h3>
+            <h3>{{ isEditing() ? 'Editar práctica' : 'Crear práctica' }}</h3>
             <button class="btn btn-ghost" (click)="closeSuggestions()">Cerrar</button>
           </div>
 
-          <ul class="suggestions">
-            @for (s of suggestions(); track s.id) {
-              <li>
-                <div class="s-left">
-                  <div class="s-icon">{{ iconOrFallback(s.icon) }}</div>
-                  <div class="s-body">
-                    <div class="s-title">{{ s.practice_name }}</div>
-                    <div class="s-desc muted">{{ s.description }}</div>
-                  </div>
-                </div>
-                <button class="btn btn-primary" [disabled]="saving()" (click)="addSuggestion(s)">
-                  Seleccionar
-                </button>
-              </li>
-            }
-          </ul>
+          <form [formGroup]="practiceForm" class="custom-form">
+            <div class="form-group">
+              <label for="name">Nombre de la practica *</label>
+              <input 
+                id="name"
+                type="text" 
+                formControlName="name" 
+                placeholder="Ej: Meditacion matutina"
+                class="form-control"
+              />
+              @if (practiceForm.get('name')?.invalid && practiceForm.get('name')?.touched) {
+                <small class="error">El nombre es requerido (minimo 3 caracteres)</small>
+              }
+            </div>
+
+            <div class="form-group">
+              <label for="description">Descripcion *</label>
+              <textarea 
+                id="description"
+                formControlName="description" 
+                placeholder="Describe tu practica..."
+                rows="3"
+                class="form-control"
+              ></textarea>
+              @if (practiceForm.get('description')?.invalid && practiceForm.get('description')?.touched) {
+                <small class="error">La descripcion es requerida</small>
+              }
+            </div>
+
+            <div class="form-row">
+              <div class="form-group">
+                <label for="icon">Icono</label>
+                <input 
+                  id="icon"
+                  type="text" 
+                  formControlName="icon" 
+                  placeholder="💡"
+                  class="form-control"
+                />
+              </div>
+
+              <div class="form-group">
+                <label for="value_kind">Tipo de valor</label>
+                <select id="value_kind" formControlName="value_kind" class="form-control">
+                  <option value="quantity">Quantity</option>
+                  <option value="boolean">Boolean</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="form-row">
+              <div class="form-group">
+                <label for="target_value">Valor objetivo *</label>
+                <input 
+                  id="target_value"
+                  type="number" 
+                  formControlName="target_value" 
+                  placeholder="10"
+                  min="1"
+                  class="form-control"
+                />
+              </div>
+
+              <div class="form-group">
+                <label for="target_unit">Unidad</label>
+                <select id="target_unit" formControlName="target_unit" class="form-control">
+                  <option value="minutes">minutos</option>
+                  <option value="hours">horas</option>
+                  <option value="times">veces</option>
+                  <option value="glasses">vasos</option>
+                  <option value="steps">pasos</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="form-row">
+              <div class="form-group">
+                <label for="practice_operator">Operador</label>
+                <select id="practice_operator" formControlName="practice_operator" class="form-control">
+                  <option value="gte">Mayor o igual (≥)</option>
+                  <option value="eq">Igual (=)</option>
+                  <option value="lte">Menor o igual (≤)</option>
+                </select>
+              </div>
+
+              <div class="form-group">
+                <label for="days_per_week">Dias por semana *</label>
+                <input 
+                  id="days_per_week"
+                  type="number" 
+                  formControlName="days_per_week" 
+                  placeholder="7"
+                  min="1"
+                  max="7"
+                  class="form-control"
+                />
+              </div>
+            </div>
+
+            <div class="form-actions">
+              <button 
+                type="button"
+                class="btn btn-primary" 
+                (click)="crearNuevaPractica()"
+                [disabled]="practiceForm.invalid || saving()"
+              >
+                <lucide-icon [img]="isEditing() ? EditIcon : PlusIcon"></lucide-icon>
+                {{ saving() ? (isEditing() ? 'Actualizando...' : 'Creando...') : (isEditing() ? 'Actualizar práctica' : 'Crear práctica') }}
+              </button>
+              <button 
+                type="button"
+                class="btn btn-ghost" 
+                (click)="closeSuggestions()"
+              >
+                Cancelar
+              </button>
+            </div>
+          </form>
         </section>
       }
     </div>
@@ -107,6 +207,6 @@
       <p class="err">{{ err() }}</p>
     }
   } @else {
-    <div class="container loading">Cargando prácticas…</div>
+    <div class="container loading">Cargando practicas...</div>
   }
 </section>
