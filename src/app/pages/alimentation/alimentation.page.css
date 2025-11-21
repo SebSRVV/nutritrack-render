@@ -179,3 +179,44 @@
 *::-webkit-scrollbar{ height:10px; width:10px; }
 *::-webkit-scrollbar-thumb{ background: rgba(255,255,255,.18); border-radius:999px; }
 *::-webkit-scrollbar-track{ background: transparent; }
+
+/* ====== Modal manual kcal (glassy popup) ====== */
+.modal-backdrop{
+  position: fixed; inset: 0; z-index: 60;
+  display:grid; place-items:center;
+  background: rgba(6,12,22,.35);
+  backdrop-filter: blur(8px);
+}
+.modal-card{
+  width:min(640px, 92vw);
+  border-radius:18px;
+  background: var(--card-bg);
+  border:1px solid var(--card-bd);
+  box-shadow: 0 24px 64px rgba(0,0,0,.45), inset 0 1px 0 rgba(255,255,255,.04);
+  overflow:hidden;
+}
+.modal-head{ display:flex; align-items:center; gap:.6rem; padding:.9rem 1rem; border-bottom:1px solid rgba(255,255,255,.12); }
+.modal-head .title{ font-weight:900; letter-spacing:.2px; }
+.modal-body{ padding: .9rem 1rem; }
+.modal-foot{ display:flex; gap:.6rem; justify-content:flex-end; padding:.9rem 1rem; border-top:1px solid rgba(255,255,255,.12); }
+.modal-card .icon-btn{ width:32px; height:32px; margin-left:auto; border-radius:10px; border:1px solid rgba(255,255,255,.18); background: rgba(255,255,255,.09); color:#e8eef8; font-weight:900; }
+.base-desc{ padding:.55rem .7rem; border-radius:12px; border:1px solid rgba(255,255,255,.12); background: rgba(255,255,255,.05); font-weight:800; }
+
+/* ====== Toast ====== */
+.toast{
+  position: fixed; left:50%; bottom: 26px; transform: translateX(-50%);
+  z-index:70;
+}
+.toast-inner{
+  display:inline-flex; align-items:center; gap:.5rem;
+  padding:.55rem .85rem; border-radius:12px;
+  background: rgba(22,163,74,.18); /* ok */
+  border:1px solid rgba(22,163,74,.35);
+  backdrop-filter: blur(6px);
+  color:#e8eef8; font-weight:900;
+  box-shadow: 0 14px 34px rgba(0,0,0,.35);
+}
+.toast.err .toast-inner{
+  background: rgba(244,63,94,.16);
+  border-color: rgba(244,63,94,.35);
+}

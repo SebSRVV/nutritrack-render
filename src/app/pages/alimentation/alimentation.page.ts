@@ -8,7 +8,10 @@ import {
   LucideAngularModule,
   UtensilsCrossedIcon, PlusIcon, Trash2Icon, FlameIcon, ClockIcon, AppleIcon, SettingsIcon
 } from 'lucide-angular';
+import { firstValueFrom } from 'rxjs';
 import { SupabaseService } from '../../core/supabase.service';
+import { AuthService } from '../../services/auth.service';
+import { MealsService, MealResponseDto } from '../../services/meals.service';
 import { environment } from '../../../environments/environment';
 
 type MealType = 'breakfast' | 'lunch' | 'dinner' | 'snack';
@@ -60,6 +63,8 @@ export default class AlimentationPage implements AfterViewInit, OnDestroy {
   readonly SettingsIcon = SettingsIcon;
 
   private supabase = inject(SupabaseService);
+  private auth = inject(AuthService);
+  private meals = inject(MealsService);
   private platformId = inject(PLATFORM_ID);
   private isBrowser = isPlatformBrowser(this.platformId);
 
@@ -77,6 +82,16 @@ export default class AlimentationPage implements AfterViewInit, OnDestroy {
   analyzing = signal(false);
   analysis = signal<Analysis | null>(null);
   analysisErr = signal<string | null>(null);
+  manualModalOpen = signal(false);
+  manualInput = signal('');
+  manualBaseDesc = signal('');
+  manualErr = signal<string | null>(null);
+  manualSaving = signal(false);
+
+  // Toast ligero
+  toastOpen = signal(false);
+  toastMsg = signal('');
+  toastType = signal<'ok'|'err'>('ok');
 
   // Imagen / Uploader UX
   uploading = signal(false);
@@ -117,23 +132,17 @@ export default class AlimentationPage implements AfterViewInit, OnDestroy {
   });
 
   // --------- Ciclo de vida ---------
+  manualPreview = computed(() => this.manualModalOpen()
+    ? this.previewManualEntries(this.manualInput(), this.manualBaseDesc() || this.text())
+    : []);
+
   async ngOnInit() {
     try {
       this.loading.set(true);
 
-      const { data: ures, error: uerr } = await this.supabase.client.auth.getUser();
-      if (uerr) throw uerr;
-      const uid = ures.user?.id;
-      if (!uid) throw new Error('Sesión no válida');
-      this.uid.set(uid);
-
-      // Recomendación kcal si existe
-      const { data: rec } = await this.supabase.client
-        .from('user_recommendations')
-        .select('goal_kcal')
-        .eq('user_id', uid)
-        .maybeSingle();
-      if (rec?.goal_kcal) this.recKcal.set(Number(rec.goal_kcal));
+      const me = await firstValueFrom(this.auth.me<{ id?: string }>());
+      if (!me?.id) throw new Error('Sesión no válida');
+      this.uid.set(me.id);
 
       await this.loadToday();
     } catch (e: any) {
@@ -168,29 +177,19 @@ export default class AlimentationPage implements AfterViewInit, OnDestroy {
   private endOfToday()   { const d = this.startOfToday(); d.setDate(d.getDate()+1); return d; }
 
   async loadToday() {
-    const { data, error } = await this.supabase.client
-      .from('meal_logs')
-      .select('id, description, calories, protein_g, carbs_g, fat_g, meal_type, logged_at, meal_categories, ai_items')
-      .eq('user_id', this.uid())
-      .gte('logged_at', this.startOfToday().toISOString())
-      .lt('logged_at', this.endOfToday().toISOString())
-      .order('logged_at', { ascending: false });
-
-    if (error) {
-      this.err.set(error.message ?? 'No se pudo cargar el listado.');
-      return;
+    const uid = this.uid(); if (!uid) return;
+    try {
+      const today = new Date(); today.setHours(0,0,0,0);
+      const from = this.toDateInputValue(today);
+      const meals = await firstValueFrom(this.meals.listByDateRange(from, from));
+      const normalized = (meals ?? [])
+        .map((m) => this.mapMealResponse(m))
+        .sort((a, b) => +new Date(b.logged_at) - +new Date(a.logged_at));
+      this.todayLogs.set(normalized);
+    } catch (e: any) {
+      this.err.set(e?.message ?? 'No se pudo cargar el listado.');
+      setTimeout(() => this.err.set(null), 2500);
     }
-
-    this.todayLogs.set((data ?? []).map((r: any) => ({
-      id: String(r.id),
-      description: r.description,
-      calories: Number(r.calories) || 0,
-      protein_g: r.protein_g, carbs_g: r.carbs_g, fat_g: r.fat_g,
-      meal_type: r.meal_type as MealType,
-      logged_at: r.logged_at,
-      meal_categories: r.meal_categories ?? null,
-      ai_items: r.ai_items ?? null,
-    })));
   }
 
   // ---- Helpers de error ----
@@ -412,15 +411,19 @@ export default class AlimentationPage implements AfterViewInit, OnDestroy {
     this.todayLogs.set([optimistic, ...this.todayLogs()]);
 
     try {
-      const { data, error } = await this.supabase.client
-        .from('meal_logs')
-        .insert({ user_id: uid, ...payload })
-        .select('id, logged_at')
-        .single();
-      if (error) throw error;
-
+      const body = {
+        description: payload.description,
+        calories: payload.calories,
+        proteinGrams: payload.protein_g,
+        carbsGrams: payload.carbs_g,
+        fatGrams: payload.fat_g,
+        mealType: payload.meal_type,
+        loggedAt: new Date().toISOString(),
+        categoryIds: undefined as number[] | undefined,
+      };
+      const saved = await firstValueFrom(this.meals.create(body));
       this.todayLogs.set(this.todayLogs().map(i => i.id === optimistic.id
-        ? { ...optimistic, id: data.id, logged_at: data.logged_at }
+        ? { ...optimistic, id: String(saved.id), logged_at: saved.loggedAt }
         : i));
     } catch (e: any) {
       this.todayLogs.set(this.todayLogs().filter(i => i.id !== optimistic.id));
@@ -453,21 +456,53 @@ export default class AlimentationPage implements AfterViewInit, OnDestroy {
     this.text.set(''); this.analysis.set(null);
   }
 
-  /** Prompt seguro (solo en cliente) para ingresar kcal manualmente */
+  /** Abrir modal de ingreso manual (sin prompt nativo) */
   openManualPrompt() {
-    if (!this.isBrowser) return; // SSR safe
-    const raw = window.prompt('Ingresa kcal (estimado):', '300');
-    const v = Number(raw ?? 0);
-    if (!Number.isFinite(v) || v <= 0) return;
-    void this.addManual(v);
+    this.manualErr.set(null);
+    this.manualInput.set('');
+    this.manualBaseDesc.set(this.text().trim());
+    this.manualModalOpen.set(true);
+  }
+
+  closeManual() {
+    this.manualModalOpen.set(false);
+    this.manualSaving.set(false);
+  }
+
+  async saveManualEntries() {
+    try {
+      this.manualSaving.set(true);
+      const items = this.previewManualEntries(this.manualInput(), this.manualBaseDesc() || this.text());
+      if (!items.length) { this.manualErr.set('Ingresa al menos una cantidad válida.'); return; }
+      for (const it of items) {
+        await this.addLog({
+          description: it.desc.trim() || 'Registro',
+          calories: it.kcal,
+          protein_g: null, carbs_g: null, fat_g: null,
+          meal_type: this.mealType(),
+        });
+      }
+      this.text.set('');
+      this.closeManual();
+      this.showToast('Registro(s) guardado(s)', 'ok');
+    } catch (e:any) {
+      const msg = e?.message ?? 'No se pudo guardar.';
+      this.manualErr.set(msg);
+      this.showToast(msg, 'err');
+    } finally {
+      this.manualSaving.set(false);
+    }
   }
 
   async deleteLog(m: MealLog) {
     try {
-      await this.supabase.client.from('meal_logs').delete().eq('id', m.id);
+      await firstValueFrom(this.meals.delete(m.id));
       this.todayLogs.set(this.todayLogs().filter(i => i.id !== m.id));
+      this.showToast('Registro eliminado', 'ok');
     } catch (e: any) {
-      this.err.set(e?.message ?? 'No se pudo eliminar.');
+      const msg = e?.message ?? 'No se pudo eliminar.';
+      this.err.set(msg);
+      this.showToast(msg, 'err');
       setTimeout(() => this.err.set(null), 2000);
     }
   }
@@ -485,5 +520,45 @@ export default class AlimentationPage implements AfterViewInit, OnDestroy {
 
   fmtTime(iso: string) {
     return new Date(iso).toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit' });
+  }
+
+  // ---- Helpers Render API ----
+  private toDateInputValue(d: Date){
+    const y = d.getFullYear();
+    const m = String(d.getMonth()+1).padStart(2,'0');
+    const day = String(d.getDate()).padStart(2,'0');
+    return `${y}-${m}-${day}`;
+  }
+
+  private mapMealResponse(m: MealResponseDto): MealLog {
+    return {
+      id: String(m.id),
+      description: m.description,
+      calories: Number(m.calories) || 0,
+      protein_g: m.proteinGrams == null ? null : Number(m.proteinGrams),
+      carbs_g: m.carbsGrams == null ? null : Number(m.carbsGrams),
+      fat_g: m.fatGrams == null ? null : Number(m.fatGrams),
+      meal_type: (m.mealType as MealType) || 'breakfast',
+      logged_at: typeof m.loggedAt === 'string' ? m.loggedAt : new Date().toISOString(),
+      meal_categories: null,
+      ai_items: null,
+    };
+  }
+
+  private previewManualEntries(raw: string, baseDesc: string): Array<{ desc: string; kcal: number }>{
+    const parts = (raw || '').split(',').map(s => s.trim()).filter(Boolean);
+    const out: Array<{desc:string;kcal:number}> = [];
+    for (const p of parts) {
+      const n = Number(p);
+      if (Number.isFinite(n) && n > 0) out.push({ desc: baseDesc || 'Registro', kcal: Math.round(n) });
+    }
+    return out;
+  }
+
+  private showToast(msg: string, type: 'ok'|'err' = 'ok'){
+    this.toastMsg.set(msg);
+    this.toastType.set(type);
+    this.toastOpen.set(true);
+    setTimeout(()=> this.toastOpen.set(false), 1800);
   }
 }

@@ -45,4 +45,9 @@ export class AuthService {
       })
     );
   }
+
+  me<T = any>(): Observable<T> {
+    const url = `${this.base}/api/auth/me`;
+    return this.http.get<T>(url);
+  }
 }
