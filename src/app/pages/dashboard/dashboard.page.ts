@@ -1,17 +1,14 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterLink } from '@angular/router';
+import { SupabaseService } from '../../core/supabase.service';
 import {
   LucideAngularModule,
   ActivityIcon, TargetIcon, DropletsIcon, HeartPulseIcon, ChevronRightIcon,
   UtensilsCrossedIcon, SettingsIcon
 } from 'lucide-angular';
-import { HttpClient, HttpParams } from '@angular/common/http';
-import { AuthService } from '../../services/auth.service';
-import { environment } from '../../../environments/environment';
-import { SupabaseService } from '../../core/supabase.service';
 
-type Sex = 'FEMALE' | 'MALE';
+type Sex = 'female' | 'male';
 type ActivityLevel = 'sedentary' | 'moderate' | 'very_active';
 type DietType = 'low_carb' | 'caloric_deficit' | 'surplus';
 
@@ -33,9 +30,6 @@ export default class DashboardPage {
   readonly ChevronRightIcon = ChevronRightIcon;
   readonly SettingsIcon = SettingsIcon;
 
-  private http = inject(HttpClient);
-  private auth = inject(AuthService);
-  private apiBase = environment.apiBaseUrl;
   private supabase = inject(SupabaseService);
 
   // Estado base
@@ -44,7 +38,7 @@ export default class DashboardPage {
 
   // Perfil
   uid = signal<string | null>(null);
-  sex = signal<Sex>('FEMALE');
+  sex = signal<Sex>('female');
   height = signal<number | null>(null);
   weight = signal<number | null>(null);
   dob = signal<string | null>(null);
@@ -100,6 +94,7 @@ export default class DashboardPage {
     return pct > 100 ? 100 : pct < 0 ? 0 : +pct.toFixed(1);
   });
 
+  // === NUEVO: % progreso de alimentación (kcal) ===
   foodPct = computed(() => {
     const goal = this.recKcal();
     const v = this.todayKcal();
@@ -139,7 +134,7 @@ export default class DashboardPage {
     if (!h || !w || !s || age === null) return { kcal: null, water: null };
 
     // BMR (Mifflin-St Jeor)
-    const bmr = s === 'MALE'
+    const bmr = s === 'male'
       ? 10 * w + 6.25 * h - 5 * age + 5
       : 10 * w + 6.25 * h - 5 * age - 161;
 
@@ -157,34 +152,58 @@ export default class DashboardPage {
     try {
       this.loading.set(true);
 
-      // Perfil base desde backend
-      const me = await this.auth.me().toPromise();
-      if (!me?.id) throw new Error('Sesión no válida');
-      const uid = me.id; this.uid.set(uid);
+      const { data: ures, error: uerr } = await this.supabase.client.auth.getUser();
+      if (uerr) throw uerr;
+      const uid = ures.user?.id;
+      if (!uid) throw new Error('Sesión no válida');
+      this.uid.set(uid);
 
-      this.sex.set((me?.sex ?? 'FEMALE') as Sex);
-      this.dob.set(me?.dob ?? null);
-      this.height.set(me?.height_cm ?? null);
-      this.weight.set(me?.weight_kg ?? null);
-      this.activity.set((me?.activity_level ?? 'moderate') as ActivityLevel);
-      this.diet.set((me?.diet_type ?? 'caloric_deficit') as DietType);
+      // Perfil base
+      const { data: prof, error: perr } = await this.supabase.client
+        .from('profiles')
+        .select('sex, dob, height_cm, weight_kg, activity_level, diet_type')
+        .eq('id', uid)
+        .single();
+      if (perr) throw perr;
 
-      // Recomendaciones: calcula localmente con datos del perfil
-      const f = this.recomputeLocalRecommendations();
-      this.recKcal.set(f.kcal);
-      this.recWater.set(f.water);
+      this.sex.set((prof?.sex ?? 'female') as Sex);
+      this.dob.set(prof?.dob ?? null);
+      this.height.set(prof?.height_cm ?? null);
+      this.weight.set(prof?.weight_kg ?? null);
+      this.activity.set((prof?.activity_level ?? 'moderate') as ActivityLevel);
+      this.diet.set((prof?.diet_type ?? 'caloric_deficit') as DietType);
+
+      // Recomendaciones desde DB si existe fila
+      const { data: rec } = await this.supabase.client
+        .from('user_recommendations')
+        .select('goal_kcal, water_ml')
+        .eq('user_id', uid)
+        .maybeSingle();
+
+      if (rec?.goal_kcal && rec?.water_ml) {
+        this.recKcal.set(Number(rec.goal_kcal));
+        this.recWater.set(Number(rec.water_ml));
+      } else {
+        const f = this.recomputeLocalRecommendations();
+        this.recKcal.set(f.kcal);
+        this.recWater.set(f.water);
+      }
 
       // Ventana de hoy (local)
       const start = new Date(); start.setHours(0,0,0,0);
       const end = new Date(start); end.setDate(start.getDate() + 1);
 
-      // Comidas de hoy (backend)
-      const params = new HttpParams().set('from', start.toISOString().slice(0,10)).set('to', end.toISOString().slice(0,10));
-      const meals = await this.http.get<any[]>(`${this.apiBase}/api/meals`, { params }).toPromise();
+      // Comidas de hoy
+      const { data: meals } = await this.supabase.client
+        .from('meal_logs')
+        .select('calories')
+        .eq('user_id', uid)
+        .gte('logged_at', start.toISOString())
+        .lt('logged_at', end.toISOString());
       this.todayMeals.set(meals?.length ?? 0);
       this.todayKcal.set((meals ?? []).reduce((s: number, m: any) => s + (Number(m.calories) || 0), 0));
 
-      // Agua de hoy (Supabase)
+      // Agua de hoy
       const { data: waters } = await this.supabase.client
         .from('water_intake')
         .select('amount_ml')
@@ -193,11 +212,20 @@ export default class DashboardPage {
         .lt('logged_at', end.toISOString());
       this.waterMl.set((waters ?? []).reduce((s: number, r: any) => s + (Number(r.amount_ml) || 0), 0));
 
-      // Metas (conteo + muestra) desde backend
-      const goals = await this.http.get<any[]>(`${this.apiBase}/api/goals`, { params: new HttpParams().set('userId', uid) }).toPromise();
-      const sorted = (goals ?? []).sort((a,b) => +new Date(b.created_at||b.createdAt||0) - +new Date(a.created_at||a.createdAt||0));
-      this.goalsSample.set(sorted.slice(0,3).map((g:any)=>({ id: g.id, title: g.goal_name ?? g.title ?? '', status: g.is_active ? 'Activa' : 'Inactiva' })));
-      this.goalsCount.set(goals?.length ?? 0);
+      // Metas (conteo + 3 recientes)
+      const { data: goals } = await this.supabase.client
+        .from('goals')
+        .select('id, title, status')
+        .eq('user_id', uid)
+        .order('created_at', { ascending: false })
+        .limit(3);
+      this.goalsSample.set(goals ?? []);
+
+      const { count } = await this.supabase.client
+        .from('goals')
+        .select('id', { count: 'exact', head: true })
+        .eq('user_id', uid);
+      this.goalsCount.set(count ?? 0);
 
     } catch (e: any) {
       this.err.set(e?.message ?? 'No se pudo cargar el dashboard.');
@@ -206,4 +234,3 @@ export default class DashboardPage {
     }
   }
 }
-
