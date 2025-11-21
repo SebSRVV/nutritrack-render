@@ -50,4 +50,22 @@ export class AuthService {
     const url = `${this.base}/api/auth/me`;
     return this.http.get<T>(url);
   }
+
+  profile<T = any>(): Observable<T> {
+    const url = `${this.base}/api/auth/profile`;
+    return this.http.get<T>(url);
+  }
+
+  updateProfile<T = any>(body: {
+    username?: string;
+    sex?: 'MALE' | 'FEMALE';
+    height_cm?: number;
+    weight_kg?: number;
+    dob?: string; // YYYY-MM-DD
+    activity_level?: 'sedentary' | 'moderate' | 'very_active';
+    diet_type?: 'caloric_deficit' | 'maintenance' | 'surplus';
+  }): Observable<T> {
+    const url = `${this.base}/api/auth/profile`;
+    return this.http.patch<T>(url, body);
+  }
 }

@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import { ReactiveFormsModule, NonNullableFormBuilder, Validators } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import { SupabaseService } from '../../core/supabase.service';
+import { AuthService } from '../../services/auth.service';
 import {
   LucideAngularModule,
   UserIcon, MailIcon, CalendarIcon, RulerIcon, ScaleIcon, HeartPulseIcon,
@@ -74,6 +75,7 @@ export default class ProfilePage {
 
   private fb = inject(NonNullableFormBuilder);
   private supabase = inject(SupabaseService);
+  private auth = inject(AuthService);
   private router = inject(Router);
 
   // UI state
@@ -178,29 +180,22 @@ export default class ProfilePage {
   }
 
   private async loadProfile() {
-    const { data, error } = await this.supabase.client
-      .from('profiles')
-      .select('id, username, dob, sex, height_cm, weight_kg, bmi, activity_level, diet_type, created_at, updated_at')
-      .eq('id', this.userId())
-      .single<ProfileRow>();
-
-    if (error) throw error;
-
+    const p: any = await this.auth.profile().toPromise();
     // Pinta cabecera/personales
-    this.username.set(data.username ?? '');
-    this.sex.set((data.sex ?? 'female') as Sex);
-    this.dob.set(data.dob ?? '');
+    this.username.set(p?.username ?? '');
+    this.sex.set(((p?.sex ?? 'female') as string).toLowerCase() as Sex);
+    this.dob.set(p?.dob ?? '');
 
     // Form/editores
-    const h = Number(data.height_cm ?? 170);
-    const w = Number(data.weight_kg ?? 70);
+    const h = Number(p?.height_cm ?? 170);
+    const w = Number(p?.weight_kg ?? 70);
     this.form.patchValue({ height_cm: h, weight_kg: w }, { emitEvent: true });
     this.heightVal.set(h);
     this.weightVal.set(w);
 
     // Preferencias
-    this.activityLevel.set(data.activity_level ?? 'moderate');
-    this.dietType.set(data.diet_type ?? 'caloric_deficit');
+    this.activityLevel.set((p?.activity_level ?? 'moderate') as any);
+    this.dietType.set((p?.diet_type ?? 'caloric_deficit') as any);
   }
 
   setActivity(v: ActivityLevel){ this.activityLevel.set(v); }
@@ -216,24 +211,21 @@ export default class ProfilePage {
     const v = this.form.getRawValue();
 
     try {
-      // guardamos todo en la tabla profiles (RLS: id = auth.uid())
-      const payload = {
+      // Guardar vía backend
+      const mappedDiet: 'caloric_deficit' | 'maintenance' | 'surplus' =
+        this.dietType() === 'low_carb' ? 'caloric_deficit' : (this.dietType() as any);
+
+      await this.auth.updateProfile({
+        username: this.username(),
+        sex: (this.sex() === 'female' ? 'FEMALE' : 'MALE'),
         height_cm: v.height_cm,
         weight_kg: v.weight_kg,
-        bmi: this.bmi(),
+        dob: this.dob() || undefined,
         activity_level: this.activityLevel(),
-        diet_type: this.dietType()
-      };
-
-      const { error } = await this.supabase.client
-        .from('profiles')
-        .update(payload)
-        .eq('id', this.userId());
-
-      if (error) throw error;
+        diet_type: mappedDiet,
+      }).toPromise();
 
       this.successMessage.set('Cambios guardados correctamente.');
-      // refrescamos por si hay triggers/normalización
       await this.loadProfile();
     } catch (e: any) {
       this.serverError.set(e?.message ?? 'No se pudo guardar.');
