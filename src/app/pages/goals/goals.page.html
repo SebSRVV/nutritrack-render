@@ -47,135 +47,157 @@
       </div>
 
       <div class="scroll-area" *ngIf="!loading()">
-        
-        <div class="grid" aria-label="Mis metas">
-          <div class="section-title row">
-            <lucide-icon [img]="ListChecksIcon" class="icon-16"></lucide-icon>
-            <span>Mis metas activas</span>
-          </div>
+        <!-- Si hay metas: grid + calendario -->
+        <ng-container *ngIf="!showEmpty(); else emptyState">
+          <div class="grid" aria-label="Mis metas">
+            <div class="section-title row">
+              <lucide-icon [img]="ListChecksIcon" class="icon-16"></lucide-icon>
+              <span>Mis metas activas</span>
+            </div>
 
-          <div
-            class="card clickable goal-card"
-            *ngFor="let g of goals(); trackBy: trackByGoal"
-            [ngClass]="getGoalColorClass(g)"
-            [class.card-inactive]="!g.is_active"
-            (click)="openEdit(g)"
-            title="Personalizar meta"
-          >
-            <div class="card-head">
-              <div class="title-wrap">
-                <div class="row goal-header">
-                  <div class="icon-box" style="color: var(--c-solid)">
-                    <lucide-icon [img]="TargetIcon" class="icon-16"></lucide-icon>
+            <div
+              class="card clickable goal-card"
+              *ngFor="let g of goals(); trackBy: trackByGoal"
+              [ngClass]="getGoalColorClass(g)"
+              [class.card-inactive]="!g.is_active"
+              (click)="openEdit(g)"
+              title="Personalizar meta"
+            >
+              <div class="card-head">
+                <div class="title-wrap">
+                  <div class="row goal-header">
+                    <div class="icon-box" style="color: var(--c-solid)">
+                      <lucide-icon [img]="TargetIcon" class="icon-16"></lucide-icon>
+                    </div>
+                    <div class="text-col">
+                      <h3 [class.inactive]="!g.is_active">{{ g.goal_name }}</h3>
+                      <span class="badge" [class.badge-inactive]="!g.is_active">
+                        {{ g.is_active ? 'Activa' : 'Inactiva' }}
+                      </span>
+                    </div>
                   </div>
-                  <div class="text-col">
-                    <h3 [class.inactive]="!g.is_active">{{ g.goal_name }}</h3>
-                    <span class="badge" [class.badge-inactive]="!g.is_active">
-                      {{ g.is_active ? 'Activa' : 'Inactiva' }}
-                    </span>
-                  </div>
+
+                  <button
+                    class="switch"
+                    role="switch"
+                    [attr.aria-checked]="g.is_active ? 'true' : 'false'"
+                    (click)="$event.stopPropagation(); toggleActiveSwitch(g)"
+                    aria-label="Cambiar estado de la meta"
+                    type="button"
+                  >
+                    <span class="dot"></span>
+                  </button>
                 </div>
 
+                <p class="desc" *ngIf="g.description">{{ g.description }}</p>
+              </div>
+
+              <div class="card-actions">
                 <button
-                  class="switch"
-                  role="switch"
-                  [attr.aria-checked]="g.is_active ? 'true' : 'false'"
-                  (click)="$event.stopPropagation(); toggleActiveSwitch(g)"
-                  aria-label="Cambiar estado de la meta"
+                  class="btn ghost"
+                  (click)="$event.stopPropagation(); openEdit(g)"
                   type="button"
                 >
-                  <span class="dot"></span>
+                  <lucide-icon
+                    [img]="Settings2Icon"
+                    class="icon-16 v-2"
+                  ></lucide-icon>
+                  &nbsp;Editar
+                </button>
+
+                <button
+                  class="btn btn-danger ghost"
+                  (click)="$event.stopPropagation(); deleteGoal(g)"
+                  type="button"
+                >
+                  <lucide-icon
+                    [img]="Trash2Icon"
+                    class="icon-16 v-2"
+                  ></lucide-icon>
+                  &nbsp;Eliminar
                 </button>
               </div>
-
-              <p class="desc" *ngIf="g.description">{{ g.description }}</p>
-            </div>
-
-            <div class="card-actions">
-              <button
-                class="btn ghost"
-                (click)="$event.stopPropagation(); openEdit(g)"
-                type="button"
-              >
-                <lucide-icon [img]="Settings2Icon" class="icon-16 v-2"></lucide-icon>
-                &nbsp;Editar
-              </button>
-
-              <button
-                class="btn btn-danger ghost"
-                (click)="$event.stopPropagation(); deleteGoal(g)"
-                type="button"
-              >
-                <lucide-icon [img]="Trash2Icon" class="icon-16 v-2"></lucide-icon>
-                &nbsp;Eliminar
-              </button>
-            </div>
-          </div>
-        </div>
-
-        <div class="goals-month fade-in" *ngIf="monthDays().length > 0">
-          <div class="month-header-row">
-            <div class="month-title">
-              <h4>Calendario de seguimiento</h4>
-              <p>Vista mensual de tus objetivos</p>
-            </div>
-
-            <div class="month-nav row">
-              <button class="month-nav-btn" (click)="changeMonth(-1)">
-                 <lucide-icon [img]="ChevronLeftIcon" class="icon-16"></lucide-icon>
-              </button>
-              
-              <span class="month-label month-chip">{{ currentMonthLabel() }}</span>
-              
-              <button class="month-nav-btn" (click)="changeMonth(1)">
-                 <lucide-icon [img]="ChevronRightIcon" class="icon-16"></lucide-icon>
-              </button>
             </div>
           </div>
 
-          <div class="month-grid">
-            <div
-              class="month-cell month-head"
-              *ngFor="let d of weekdayLabels"
-            >
-              {{ d }}
-            </div>
-
-            <ng-container *ngFor="let day of monthDays()">
-              <div
-                class="month-cell month-day"
-                [class.outside]="!day.inMonth"
-                [class.today]="day.isToday"
-              >
-                <div class="month-day-header">
-                  <span class="month-day-number">
-                    {{ day.date | date: 'd' }}
-                  </span>
-                </div>
-
-                <div class="month-day-body">
-                  <ng-container *ngFor="let g of goals()">
-                    <div
-                      class="month-goal-pill"
-                      [ngClass]="getGoalColorClass(g)"
-                      *ngIf="goalActiveOn(g, day.date)"
-                      [class.inactive]="!g.is_active"
-                      [title]="g.goal_name"
-                    >
-                      {{ g.goal_name }}
-                    </div>
-                  </ng-container>
-                </div>
+          <div class="goals-month fade-in" *ngIf="monthDays().length > 0">
+            <div class="month-header-row">
+              <div class="month-title">
+                <h4>Calendario de seguimiento</h4>
+                <p>Vista mensual de tus objetivos</p>
               </div>
-            </ng-container>
-          </div>
-        </div>
 
-        <div class="empty fade-in" *ngIf="showEmpty()">
-          <img src="https://illustrations.popsy.co/gray/goal.svg" alt="goals" />
-          <h3>Sin metas por aquí</h3>
-          <p>Configura tus 3 metas base con el botón “Nueva Meta”.</p>
-        </div>
+              <div class="month-nav row">
+                <button class="month-nav-btn" (click)="changeMonth(-1)">
+                  <lucide-icon
+                    [img]="ChevronLeftIcon"
+                    class="icon-16"
+                  ></lucide-icon>
+                </button>
+
+                <span class="month-label month-chip">
+                  {{ currentMonthLabel() }}
+                </span>
+
+                <button class="month-nav-btn" (click)="changeMonth(1)">
+                  <lucide-icon
+                    [img]="ChevronRightIcon"
+                    class="icon-16"
+                  ></lucide-icon>
+                </button>
+              </div>
+            </div>
+
+            <div class="month-grid">
+              <div
+                class="month-cell month-head"
+                *ngFor="let d of weekdayLabels"
+              >
+                {{ d }}
+              </div>
+
+              <ng-container *ngFor="let day of monthDays()">
+                <div
+                  class="month-cell month-day"
+                  [class.outside]="!day.inMonth"
+                  [class.today]="day.isToday"
+                >
+                  <div class="month-day-header">
+                    <span class="month-day-number">
+                      {{ day.date | date: 'd' }}
+                    </span>
+                  </div>
+
+                  <div class="month-day-body">
+                    <ng-container *ngFor="let g of goals()">
+                      <div
+                        class="month-goal-pill"
+                        [ngClass]="getGoalColorClass(g)"
+                        *ngIf="goalActiveOn(g, day.date)"
+                        [class.inactive]="!g.is_active"
+                        [title]="g.goal_name"
+                      >
+                        {{ g.goal_name }}
+                      </div>
+                    </ng-container>
+                  </div>
+                </div>
+              </ng-container>
+            </div>
+          </div>
+        </ng-container>
+
+        <!-- Empty state cuando NO hay metas -->
+        <ng-template #emptyState>
+          <div class="empty fade-in">
+            <div class="empty-icon">
+              <lucide-icon [img]="TargetIcon" class="icon-32 brand-icon"></lucide-icon>
+            </div>
+            <h3>Sin metas por aquí</h3>
+            <p>Configura tus 3 metas base con el botón “Nueva Meta”.</p>
+          </div>
+        </ng-template>
+
       </div>
     </div>
   </section>

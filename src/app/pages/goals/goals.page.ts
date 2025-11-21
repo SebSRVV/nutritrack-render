@@ -172,16 +172,19 @@ export class GoalsPage {
   });
 
   // ===== Computados y helpers =====
-  
+
   weekRangeLabel = computed(() => {
     const { start, end } = this.getWeekRange(new Date());
     return `${fmtRange.format(start)} — ${fmtRange.format(end)}`;
   });
-  
+
   // Etiqueta del mes (basado en viewDate)
   currentMonthLabel = computed(() => {
-    const d = this.viewDate(); 
-    const label = new Intl.DateTimeFormat('es-PE', { month: 'long', year: 'numeric' }).format(d);
+    const d = this.viewDate();
+    const label = new Intl.DateTimeFormat('es-PE', {
+      month: 'long',
+      year: 'numeric',
+    }).format(d);
     return label.charAt(0).toUpperCase() + label.slice(1);
   });
 
@@ -195,7 +198,11 @@ export class GoalsPage {
   // Días del mes actual (42 celdas = 6 filas * 7 columnas)
   monthDays = computed(() => {
     const currentView = this.viewDate();
-    const firstOfMonth = new Date(currentView.getFullYear(), currentView.getMonth(), 1);
+    const firstOfMonth = new Date(
+      currentView.getFullYear(),
+      currentView.getMonth(),
+      1,
+    );
     const startGrid = startOfWeekMonday(firstOfMonth);
 
     // Para marcar el día "hoy" real (independiente del mes que veas)
@@ -236,13 +243,17 @@ export class GoalsPage {
   // Cambiar de mes (+1 o -1)
   changeMonth(delta: number) {
     const current = this.viewDate();
-    const next = new Date(current.getFullYear(), current.getMonth() + delta, 1);
+    const next = new Date(
+      current.getFullYear(),
+      current.getMonth() + delta,
+      1,
+    );
     this.viewDate.set(next);
   }
 
   // Asignar color consistente a cada meta
   getGoalColorClass(goal: Goal): string {
-    const key = goal.id; 
+    const key = goal.id;
 
     // Si ya tiene color asignado, lo usamos
     if (this.colorMap.has(key)) {
@@ -252,7 +263,7 @@ export class GoalsPage {
     // Si es nueva, asignamos el siguiente en la rueda (0-11)
     const nextIndex = this.colorMap.size % 12;
     this.colorMap.set(key, nextIndex);
-    
+
     return `pill-${nextIndex}`;
   }
 
@@ -445,8 +456,11 @@ export class GoalsPage {
       hasError = true;
     }
 
-    // Rango de fechas válido
-    if (f.start_date && f.end_date) {
+    // Rango de fechas obligatorio y válido
+    if (!f.start_date || !f.end_date) {
+      this.dateError.set('Selecciona una fecha de inicio y una fecha de fin.');
+      hasError = true;
+    } else {
       const s = new Date(f.start_date);
       const e = new Date(f.end_date);
       if (s > e) {
@@ -562,9 +576,7 @@ export class GoalsPage {
 
     // UI optimista
     this.goals.set(
-      snapshot.map((x) =>
-        x.id === g.id ? { ...x, is_active: next } : x,
-      ),
+      snapshot.map((x) => (x.id === g.id ? { ...x, is_active: next } : x)),
     );
 
     let headers;

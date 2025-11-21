@@ -555,3 +555,17 @@ input[type="number"]::-webkit-inner-spin-button,
 input[type="number"]::-webkit-outer-spin-button {
   filter: invert(0.8) brightness(0.8); /* las hace más claras sobre fondo oscuro */
 }
+
+.empty {
+  text-align: left;
+  padding: 32px 8px;
+}
+
+.empty-icon {
+  margin-bottom: 12px;
+}
+
+.icon-32 {
+  width: 32px;
+  height: 32px;
+}
