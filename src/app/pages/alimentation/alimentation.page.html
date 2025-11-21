@@ -101,19 +101,14 @@
             </div>
           </div>
           <div class="actions">
-            <button class="btn" type="button" (click)="analyze()" [disabled]="analyzing()">Analizar con IA</button>
+            <button class="btn" type="button" (click)="analyze()">Analizar con IA</button>
           </div>
         </div>
       </div>
 
       <div class="row-actions">
-        <button class="btn" (click)="analyze()" [disabled]="analyzing() || !(text().trim() || imgPublicUrl())">
-          <lucide-icon [img]="PlusIcon"></lucide-icon>
-          {{ analyzing() ? 'Analizando…' : 'Analizar con IA' }}
-        </button>
-        <button class="btn ghost" (click)="openManualPrompt()" [disabled]="!(text().trim())">
-          Agregar manual
-        </button>
+        <button class="btn" (click)="analyze()">Analizar con IA</button>
+        <button class="btn ghost" (click)="openManualPrompt()">Agregar manual</button>
       </div>
 
       <!-- Resultado análisis -->
@@ -199,7 +194,58 @@
   </div>
 
   <p class="err center" *ngIf="err()">{{ err() }}</p>
+
+  <!-- Modal manual kcal -->
+  <div class="modal-backdrop" *ngIf="manualModalOpen()">
+    <div class="modal-card">
+      <header class="modal-head">
+        <div class="title">Ingresar calorías manualmente</div>
+        <button class="icon-btn" type="button" (click)="closeManual()" aria-label="Cerrar">×</button>
+      </header>
+
+      <div class="modal-body">
+        <label class="lbl">Descripción base</label>
+        <div class="base-desc">{{ manualBaseDesc() || text() || 'Registro' }}</div>
+
+        <label class="lbl" style="margin-top:.5rem">Calorías (separadas por comas)</label>
+        <input type="text" class="food-input" [value]="manualInput()"
+               (input)="manualInput.set($any($event.target).value)"
+               placeholder="Ej: 250, 120, 330">
+
+        <div class="hint" style="margin:.35rem 0 .2rem; color:var(--muted); font-weight:800;">
+          Vista previa
+        </div>
+        <ul class="items" *ngIf="manualPreview().length; else noPrev">
+          <li *ngFor="let it of manualPreview()">
+            <span>
+              <lucide-icon [img]="FlameIcon"></lucide-icon>
+              {{ (it.desc || 'Registro') }}
+            </span>
+            <b>{{ it.kcal }} kcal</b>
+          </li>
+        </ul>
+        <ng-template #noPrev>
+          <div class="empty">Ingresa una o más cantidades válidas.</div>
+        </ng-template>
+
+        <p class="err" *ngIf="manualErr()">{{ manualErr() }}</p>
+      </div>
+
+      <footer class="modal-foot">
+        <button class="btn ghost" type="button" (click)="closeManual()">Cancelar</button>
+        <button class="btn" type="button" (click)="saveManualEntries()">{{ manualSaving() ? 'Guardando…' : 'Guardar' }}</button>
+      </footer>
+    </div>
+  </div>
 </section>
+
+<!-- Toast popup -->
+<div class="toast" *ngIf="toastOpen()" [class.err]="toastType()==='err'">
+  <div class="toast-inner">
+    <lucide-icon [img]="toastType()==='ok' ? FlameIcon : Trash2Icon"></lucide-icon>
+    <span>{{ toastMsg() }}</span>
+  </div>
+ </div>
 
 <ng-template #skel>
   <div class="container loading">Cargando alimentación…</div>

@@ -23,8 +23,12 @@ import {
   UtensilsCrossedIcon,
   SettingsIcon
 } from 'lucide-angular';
+import { HttpClient, HttpParams } from '@angular/common/http';
+import { AuthService } from '../../services/auth.service';
+import { environment } from '../../../environments/environment';
+import { SupabaseService } from '../../core/supabase.service';
 
-type Sex = 'female' | 'male';
+type Sex = 'FEMALE' | 'MALE';
 type ActivityLevel = 'sedentary' | 'moderate' | 'very_active';
 type DietType = 'low_carb' | 'caloric_deficit' | 'surplus';
 
@@ -46,6 +50,9 @@ export default class DashboardPage {
   readonly ChevronRightIcon = ChevronRightIcon;
   readonly SettingsIcon = SettingsIcon;
 
+  private http = inject(HttpClient);
+  private auth = inject(AuthService);
+  private apiBase = environment.apiBaseUrl;
   private supabase = inject(SupabaseService);
   private http = inject(HttpClient);
 
@@ -55,7 +62,7 @@ export default class DashboardPage {
 
   // Perfil
   uid = signal<string | null>(null);
-  sex = signal<Sex>('female');
+  sex = signal<Sex>('FEMALE');
   height = signal<number | null>(null);
   weight = signal<number | null>(null);
   dob = signal<string | null>(null);
@@ -155,7 +162,7 @@ export default class DashboardPage {
     if (!h || !w || !s || age === null) return { kcal: null, water: null };
 
     // BMR (Mifflin-St Jeor)
-    const bmr = s === 'male'
+    const bmr = s === 'MALE'
       ? 10 * w + 6.25 * h - 5 * age + 5
       : 10 * w + 6.25 * h - 5 * age - 161;
 
@@ -237,42 +244,22 @@ export default class DashboardPage {
     try {
       this.loading.set(true);
 
-      const { data: ures, error: uerr } = await this.supabase.client.auth.getUser();
-      if (uerr) throw uerr;
-      const uid = ures.user?.id;
-      if (!uid) throw new Error('Sesión no válida');
-      this.uid.set(uid);
+      // Perfil base desde backend
+      const me = await this.auth.me().toPromise();
+      if (!me?.id) throw new Error('Sesión no válida');
+      const uid = me.id; this.uid.set(uid);
 
-      // Perfil base
-      const { data: prof, error: perr } = await this.supabase.client
-        .from('profiles')
-        .select('sex, dob, height_cm, weight_kg, activity_level, diet_type')
-        .eq('id', uid)
-        .single();
-      if (perr) throw perr;
+      this.sex.set((me?.sex ?? 'FEMALE') as Sex);
+      this.dob.set(me?.dob ?? null);
+      this.height.set(me?.height_cm ?? null);
+      this.weight.set(me?.weight_kg ?? null);
+      this.activity.set((me?.activity_level ?? 'moderate') as ActivityLevel);
+      this.diet.set((me?.diet_type ?? 'caloric_deficit') as DietType);
 
-      this.sex.set((prof?.sex ?? 'female') as Sex);
-      this.dob.set(prof?.dob ?? null);
-      this.height.set(prof?.height_cm ?? null);
-      this.weight.set(prof?.weight_kg ?? null);
-      this.activity.set((prof?.activity_level ?? 'moderate') as ActivityLevel);
-      this.diet.set((prof?.diet_type ?? 'caloric_deficit') as DietType);
-
-      // Recomendaciones desde DB si existe fila
-      const { data: rec } = await this.supabase.client
-        .from('user_recommendations')
-        .select('goal_kcal, water_ml')
-        .eq('user_id', uid)
-        .maybeSingle();
-
-      if (rec?.goal_kcal && rec?.water_ml) {
-        this.recKcal.set(Number(rec.goal_kcal));
-        this.recWater.set(Number(rec.water_ml));
-      } else {
-        const f = this.recomputeLocalRecommendations();
-        this.recKcal.set(f.kcal);
-        this.recWater.set(f.water);
-      }
+      // Recomendaciones: calcula localmente con datos del perfil
+      const f = this.recomputeLocalRecommendations();
+      this.recKcal.set(f.kcal);
+      this.recWater.set(f.water);
 
       // Ventana de hoy (local)
       const start = new Date(); start.setHours(0, 0, 0, 0);
@@ -294,7 +281,7 @@ export default class DashboardPage {
         )
       );
 
-      // Agua de hoy
+      // Agua de hoy (Supabase)
       const { data: waters } = await this.supabase.client
         .from('water_intake')
         .select('amount_ml')
@@ -319,3 +306,4 @@ export default class DashboardPage {
     }
   }
 }
+

@@ -11,7 +11,7 @@ function isBackend(url: string): boolean {
   return !!environment.apiBaseUrl && url.startsWith(environment.apiBaseUrl);
 }
 
-/** Rutas PÚBLICAS: jamás adjuntar Authorization */
+/** Rutas PÚBLICAS: jamás adjuntar Authorization (lista explícita) */
 const PUBLIC_PATHS = [
   '/api/auth/login',
   '/api/auth/register',

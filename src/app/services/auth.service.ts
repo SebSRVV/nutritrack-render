@@ -112,4 +112,9 @@ export class AuthService {
       catchError(err => { console.error('[API/delete] error:', err); throw err; })
     );
   }
+
+  me<T = any>(): Observable<T> {
+    const url = `${this.base}/api/auth/me`;
+    return this.http.get<T>(url);
+  }
 }

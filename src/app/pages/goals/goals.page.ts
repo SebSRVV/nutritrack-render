@@ -57,7 +57,6 @@ type Goal = {
   updated_at: string;
 };
 
-/** ===== Helpers de fecha ===== */
 function startOfWeekMonday(d0: Date): Date {
   const d = new Date(d0);
   const day = d.getDay(); // 0–6
