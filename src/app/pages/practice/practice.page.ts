@@ -2,7 +2,7 @@ import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@a
 import { CommonModule } from '@angular/common';
 import { FormBuilder, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { SupabaseService } from '../../core/supabase.service';
-import { PracticesService, PracticeDTO, PracticeEntryDTO } from '../../services/practices.service';
+import { PracticesService, PracticeDTO, PracticeEntryDTO, PracticeWeekStatsDTO } from '../../services/practices.service';
 import {
   LucideAngularModule,
   HeartPulseIcon, PlusIcon, CheckIcon, Trash2Icon, RefreshCwIcon, ChevronRightIcon, EditIcon
@@ -94,7 +94,7 @@ export default class PracticePage {
 
   constructor() {
     this.practiceForm = this.fb.group({
-      name: ['', [Validators.required, Validators.minLength(3)]],
+      name: ['', [Validators.required, Validators.minLength(5)]],
       description: ['', Validators.required],
       icon: ['💡', Validators.required],
       value_kind: ['quantity', Validators.required],
@@ -118,7 +118,6 @@ export default class PracticePage {
       console.log('✅ Usuario autenticado:', uid);
 
       await Promise.all([
-        this.loadSuggestions(),
         this.loadMyPracticesAndLogs()
       ]);
     } catch (e: any) {
@@ -127,17 +126,6 @@ export default class PracticePage {
     } finally {
       this.loading.set(false);
     }
-  }
-
-  private async loadSuggestions() {
-    const { data, error } = await this.supabase.client
-      .from('default_practices')
-      .select('id, practice_name, description, icon, frequency_target, sort_order')
-      .eq('is_active', true)
-      .order('sort_order', { ascending: true });
-    
-    if (error) throw error;
-    this.suggestions.set((data ?? []) as Suggestion[]);
   }
 
   private async loadMyPracticesAndLogs() {
@@ -171,8 +159,6 @@ export default class PracticePage {
 
     if (list.length === 0) {
       console.log('ℹ️ No hay prácticas activas');
-      this.weekly.set({});
-      this.weeklyCount.set({});
       return;
     }
 
@@ -183,40 +169,7 @@ export default class PracticePage {
 
     const ids = list.map(p => p.id);
     
-    const { data: logs, error: lerr } = await this.supabase.client
-      .from('practice_logs')
-      .select('practice_id, logged_date')
-      .eq('user_id', uid)
-      .in('practice_id', ids)
-      .gte('logged_date', startIso)
-      .lte('logged_date', endIso);
     
-    if (lerr) {
-      console.error('❌ Error cargando logs:', lerr);
-      throw lerr;
-    }
-
-    console.log('✅ Logs cargados:', logs?.length ?? 0);
-
-    const byPractice: Record<string, Record<string, boolean>> = {};
-    for (const p of list) byPractice[p.id] = {};
-    for (const r of (logs ?? []) as Array<{ practice_id: string; logged_date: string }>) {
-      byPractice[r.practice_id][r.logged_date] = true;
-    }
-
-    const weekMarks: Record<string, WeekMark[]> = {};
-    const weekCounts: Record<string, number> = {};
-    for (const p of list) {
-      const marks: WeekMark[] = this.weekDates().map(d => {
-        const ymd = d.toISOString().slice(0, 10);
-        return { date: ymd, done: !!byPractice[p.id][ymd] };
-      });
-      weekMarks[p.id] = marks;
-      weekCounts[p.id] = marks.reduce((s, m) => s + (m.done ? 1 : 0), 0);
-    }
-
-    this.weekly.set(weekMarks);
-    this.weeklyCount.set(weekCounts);
   }
 
   async addSuggestion(s: Suggestion) {
@@ -225,7 +178,6 @@ export default class PracticePage {
       this.err.set(null);
       const uid = this.uid()!;
       const replacing = this.replacingId();
-
       const dto: PracticeDTO = {
         name: s.practice_name,
         description: s.description ?? '',
@@ -269,6 +221,13 @@ export default class PracticePage {
   }
 
   async toggleToday(p: UserPractice) {
+    const week: PracticeWeekStatsDTO = {
+      name: p.practice_name,
+      days_per_week: p.frequency_target ?? 7,
+      achieved_days_last_7: 0,
+      logged_days_last_7: 0
+
+    };
     try {
       this.saving.set(true);
       this.err.set(null);
@@ -320,6 +279,15 @@ export default class PracticePage {
                 this.err.set('Ya registraste esta práctica hoy. Recarga la página.');
               }
               reject(err);
+            }
+          });
+
+          this.practiceService.crearWeekStats(p.id,week).subscribe({
+            next: (response) => {
+              console.log('✅ Estadísticas semanales creadas:', response);
+            },
+              error: (err) => {
+              console.error('❌ Error al crear estadísticas semanales:', err);
             }
           });
         });
@@ -512,40 +480,36 @@ export default class PracticePage {
 
   // NUEVO: Método para actualizar práctica
   private actualizarPractica(practiceId: string, formValue: any) {
+    const dto: PracticeDTO = {
+      name: formValue.name,
+      description: formValue.description,
+      icon: formValue.icon,
+      value_kind: formValue.value_kind,
+      target_value: Number(formValue.target_value),
+      target_unit: formValue.target_unit,
+      practice_operator: formValue.practice_operator,
+      days_per_week: Number(formValue.days_per_week),
+      is_active: true,
+    };
+
+    
     console.log('📝 Actualizando práctica:', practiceId);
 
     this.saving.set(true);
     this.err.set(null);
-
-    // Hacemos la actualización directa en Supabase
-    this.supabase.client
-      .from('practices')
-      .update({
-        name: formValue.name,
-        description: formValue.description,
-        icon: formValue.icon,
-        value_kind: formValue.value_kind,
-        target_value: Number(formValue.target_value),
-        target_unit: formValue.target_unit,
-        operator: formValue.practice_operator,
-        days_per_week: Number(formValue.days_per_week),
-        updated_at: new Date().toISOString()
-      })
-      .eq('id', practiceId)
-      .eq('user_id', this.uid()!)
-      .then(({ error }) => {
-        if (error) {
-          console.error('❌ Error actualizando:', error);
-          this.err.set(error.message ?? 'Error al actualizar práctica');
-          this.saving.set(false);
-          return;
-        }
-
-        console.log('✅ Práctica actualizada correctamente');
+    this.practiceService.editarPractica(practiceId,dto).subscribe({
+      next: (result) => {
+        console.log('✅ Práctica actualizada:', result);
         this.practiceForm.reset();
         this.closeSuggestions();
         this.loadMyPracticesAndLogs();
         this.saving.set(false);
-      });
+      },
+      error: (err) => {
+        this.err.set(err.message ?? 'Error al actualizar práctica');
+        this.saving.set(false);
+        console.error('❌ Error en actualizarPractica:', err);
+      }
+    });
   }
 }

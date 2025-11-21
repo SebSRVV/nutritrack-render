@@ -3,6 +3,7 @@ import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { Observable, from, throwError } from 'rxjs';
 import { catchError, switchMap } from 'rxjs/operators';
 import { SupabaseService } from '../core/supabase.service';
+import { environment } from '../../environments/environment';
 
 // DTOs para comunicación con el backend
 export interface PracticeDTO {
@@ -46,7 +47,7 @@ export interface ErrorResponse {
 export class PracticesService {
     private http = inject(HttpClient);
     private supabase = inject(SupabaseService);
-    private baseUrl = 'http://localhost:8080/api/practices';
+    private baseUrl = `${environment.apiBaseUrl}/api/practices`;
 
     /**
      * Obtiene el Bearer Token de Supabase automáticamente
