@@ -83,7 +83,14 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; margin
 input[type=number] { -moz-appearance: textfield; }
 
 /* Errores / texto auxiliar */
-.err { color: #ff9b9b; font-size: .86rem; }
+.err {
+  color: #ffb3b3;
+  font-size: .9rem;
+  background: linear-gradient(180deg, rgba(255, 77, 77, .10), rgba(255, 77, 77, .08));
+  border: 1px solid rgba(255, 77, 77, .35);
+  padding: .6rem .75rem;
+  border-radius: 10px;
+}
 .muted { color: #b6c2d3; }
 
 /* ---------- Sliders (no usados aquí, pero coherencia si reusas) ---------- */
@@ -133,7 +140,14 @@ input[type=number] { -moz-appearance: textfield; }
 
 .messages { margin-top: .8rem; text-align: center; }
 .success { color: #34d399; font-size: .95rem; font-weight: 600; }
-.err.server { color: #ff9b9b; font-size: .9rem; }
+.err.server {
+  color: #ffb3b3;
+  font-size: .95rem;
+  background: linear-gradient(180deg, rgba(255, 77, 77, .12), rgba(255, 77, 77, .10));
+  border: 1px solid rgba(255, 77, 77, .38);
+  padding: .6rem .75rem;
+  border-radius: 10px;
+}
 
 /* Reduced motion */
 @media (prefers-reduced-motion: reduce){
