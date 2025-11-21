@@ -1,20 +1,23 @@
-import { Injectable, inject } from '@angular/core';
+import { Injectable, inject, Inject, PLATFORM_ID } from '@angular/core';
+import { isPlatformBrowser } from '@angular/common';
 import { CanActivateFn, Router } from '@angular/router';
-import { SupabaseService } from './supabase.service';
+import { AuthService } from '../services/auth.service';
 
 @Injectable({ providedIn: 'root' })
 export class _Auth {
-  supabase = inject(SupabaseService);
+  auth = inject(AuthService);
   router = inject(Router);
+  @Inject(PLATFORM_ID) platformId!: Object;
   async can(): Promise<boolean> {
-    const { data: { user } } = await this.supabase.client.auth.getUser();
-    if (user) return true;
-    await this.router.navigate(['/login'], { queryParams: { auth: 'required', redirect: '/profile' } });
+    // SSR-safe: en servidor no hay localStorage ni navegación
+    if (!isPlatformBrowser(this.platformId)) return true;
+    const token = this.auth.getAccessToken();
+    if (token) return true;
+    await this.router.navigate(['/login'], { queryParams: { auth: 'required' } });
     return false;
   }
 }
 
-// Angular standalone guard function
 export const authGuard: CanActivateFn = async () => {
   const g = new _Auth();
   return g.can();

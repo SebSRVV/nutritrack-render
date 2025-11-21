@@ -130,14 +130,14 @@ export default class PracticePage {
 
   private async loadMyPracticesAndLogs() {
     const uid = this.uid()!;
-    
+
     const { data: up, error } = await this.supabase.client
       .from('practices')
       .select('id, user_id, name, description, icon, target_value, target_unit, days_per_week, is_active')
       .eq('user_id', uid)
       .eq('is_active', true)
       .order('created_at', { ascending: true });
-    
+
     if (error) {
       console.error('❌ Error cargando prácticas:', error);
       throw error;
@@ -153,7 +153,7 @@ export default class PracticePage {
       sort_order: null,
       is_active: p.is_active
     })) as UserPractice[];
-    
+
     console.log('✅ Prácticas cargadas:', list.length);
     this.myPractices.set(list);
 
@@ -168,8 +168,8 @@ export default class PracticePage {
     const endIso = this.todayLocal().toISOString().slice(0, 10);
 
     const ids = list.map(p => p.id);
-    
-    
+
+
   }
 
   async addSuggestion(s: Suggestion) {
@@ -244,7 +244,7 @@ export default class PracticePage {
 
       if (existing?.id) {
         console.log('🗑️ Eliminando entrada:', existing.id);
-        
+
         await new Promise<void>((resolve, reject) => {
           this.practiceService.eliminarEntrada(existing.id).subscribe({
             next: (response) => {
@@ -259,7 +259,7 @@ export default class PracticePage {
         });
       } else {
         console.log('📝 Creando entrada para práctica:', p.id);
-        
+
         const entryDTO: PracticeEntryDTO = {
           value: 1,
           note: 'Cumplido',
@@ -274,7 +274,7 @@ export default class PracticePage {
             },
             error: (err) => {
               console.error('❌ Error:', err);
-              
+
               if (err.message.includes('Ya existe una entrada')) {
                 this.err.set('Ya registraste esta práctica hoy. Recarga la página.');
               }
@@ -286,7 +286,7 @@ export default class PracticePage {
             next: (response) => {
               console.log('✅ Estadísticas semanales creadas:', response);
             },
-              error: (err) => {
+            error: (err) => {
               console.error('❌ Error al crear estadísticas semanales:', err);
             }
           });
@@ -406,16 +406,16 @@ export default class PracticePage {
     this.err.set(null);
   }
 
-  iconOrFallback(i?: string | null) { 
-    return i && i.trim() ? i : '💡'; 
+  iconOrFallback(i?: string | null) {
+    return i && i.trim() ? i : '💡';
   }
-  
-  countFor(id: string) { 
-    return this.weeklyCount()[id] ?? 0; 
+
+  countFor(id: string) {
+    return this.weeklyCount()[id] ?? 0;
   }
-  
-  marksFor(id: string) { 
-    return this.weekly()[id] ?? []; 
+
+  marksFor(id: string) {
+    return this.weekly()[id] ?? [];
   }
 
   // MODIFICADO: Ahora maneja tanto creación como edición
@@ -492,7 +492,7 @@ export default class PracticePage {
       is_active: true,
     };
 
-    
+
     console.log('📝 Actualizando práctica:', practiceId);
 
     this.saving.set(true);
