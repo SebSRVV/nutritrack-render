@@ -15,12 +15,12 @@ export const routes: Routes = [
     loadComponent: () => import('./pages/profile/profile.page').then(m => m.default),
     canActivate: [authGuard]
   },
-  { path: 'dashboard',     loadComponent: () => import('./pages/dashboard/dashboard.page') },
-  { path: 'goals', loadComponent: () => import('./pages/goals/goals.page').then(m => m.GoalsPage) },
-  { path: 'alimentation',  loadComponent: () => import('./pages/alimentation/alimentation.page') },
-  { path: 'water',         loadComponent: () => import('./pages/water/water.page') },
-  { path:'panel', loadComponent: () => import('./pages/panel/panel.page') },
-  {path: 'practices', loadComponent: () => import('./pages/practice/practice.page').then(m => m.default) },
+  { path: 'dashboard', loadComponent: () => import('./pages/dashboard/dashboard.page'), canActivate: [authGuard] },
+  { path: 'goals', loadComponent: () => import('./pages/goals/goals.page').then(m => m.GoalsPage), canActivate: [authGuard] },
+  { path: 'alimentation', loadComponent: () => import('./pages/alimentation/alimentation.page'), canActivate: [authGuard] },
+  { path: 'water', loadComponent: () => import('./pages/water/water.page'), canActivate: [authGuard] },
+  { path: 'panel', loadComponent: () => import('./pages/panel/panel.page'), canActivate: [authGuard] },
+  { path: 'practices', loadComponent: () => import('./pages/practice/practice.page').then(m => m.default), canActivate: [authGuard] },
 
   { path: '**', redirectTo: '' },
 ];

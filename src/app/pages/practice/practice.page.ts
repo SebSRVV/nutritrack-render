@@ -1,11 +1,13 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterLink } from '@angular/router';
-import { SupabaseService } from '../../core/supabase.service';
 import {
   LucideAngularModule,
   HeartPulseIcon, PlusIcon, CheckIcon, Trash2Icon, RefreshCwIcon, ChevronRightIcon
 } from 'lucide-angular';
+import { HttpClient } from '@angular/common/http';
+import { environment } from '../../../environments/environment';
+import { AuthService } from '../../services/auth.service';
 
 type Suggestion = {
   id: number;
@@ -46,7 +48,9 @@ export default class PracticePage {
   readonly RefreshCwIcon = RefreshCwIcon;
   readonly ChevronRightIcon = ChevronRightIcon;
 
-  private supabase = inject(SupabaseService);
+  private http = inject(HttpClient);
+  private auth = inject(AuthService);
+  private apiBase = environment.apiBaseUrl;
 
   // estado base
   loading = signal(true);
@@ -96,9 +100,8 @@ export default class PracticePage {
       this.loading.set(true);
 
       // usuario
-      const { data: ures, error: uerr } = await this.supabase.client.auth.getUser();
-      if (uerr) throw uerr;
-      const uid = ures.user?.id;
+      const me = await this.auth.me().toPromise();
+      const uid = me?.id;
       if (!uid) throw new Error('Sesión no válida');
       this.uid.set(uid);
 
@@ -114,27 +117,21 @@ export default class PracticePage {
   }
 
   private async loadSuggestions() {
-    const { data, error } = await this.supabase.client
-      .from('default_practices')
-      .select('id, practice_name, description, icon, frequency_target, sort_order')
-      .eq('is_active', true)
-      .order('sort_order', { ascending: true });
-    if (error) throw error;
-    this.suggestions.set((data ?? []) as Suggestion[]);
+    // Sugerencias locales (frontend), ordenadas por sort_order
+    const local: Suggestion[] = [
+      { id: 1, practice_name: 'Dormir 7-8h', description: 'Prioriza descanso suficiente', icon: '💤', frequency_target: 7, sort_order: 1 },
+      { id: 2, practice_name: 'Caminar 30min', description: 'Actividad ligera diaria', icon: '🚶‍♂️', frequency_target: 5, sort_order: 2 },
+      { id: 3, practice_name: 'Frutas/Veg', description: 'Al menos 5 porciones/día', icon: '🥗', frequency_target: 7, sort_order: 3 },
+      { id: 4, practice_name: 'Meditar 10min', description: 'Respira y desconecta', icon: '🧘‍♀️', frequency_target: 5, sort_order: 4 },
+      { id: 5, practice_name: 'Evitar bebidas azucaradas', description: 'Reemplaza por agua', icon: '🚫🥤', frequency_target: 5, sort_order: 5 },
+    ];
+    this.suggestions.set(local);
   }
 
   private async loadMyPracticesAndLogs() {
     const uid = this.uid()!;
-    // prácticas del usuario
-    const { data: up, error } = await this.supabase.client
-      .from('healthy_practices') // <— tabla real
-      .select('id, user_id, practice_name, description, icon, frequency_target, sort_order, is_active')
-      .eq('user_id', uid)
-      .eq('is_active', true)
-      .order('sort_order', { ascending: true });
-    if (error) throw error;
-
-    const list = (up ?? []) as UserPractice[];
+    // prácticas del usuario desde backend
+    const list = (await this.http.get<UserPractice[]>(`${this.apiBase}/api/practices/${uid}`).toPromise()) ?? [];
     this.myPractices.set(list);
 
     // si no hay prácticas, reset semanal
@@ -144,36 +141,15 @@ export default class PracticePage {
       return;
     }
 
-    // rango de semana
-    const start = new Date(this.todayLocal());
-    start.setDate(start.getDate() - 6);
-    const startIso = start.toISOString().slice(0, 10); // YYYY-MM-DD
-    const endIso = this.todayLocal().toISOString().slice(0, 10);
-
-    // logs de la semana para todas las prácticas
-    const ids = list.map(p => p.id);
-    const { data: logs, error: lerr } = await this.supabase.client
-      .from('practice_logs') // <— tabla real
-      .select('practice_id, logged_date')
-      .eq('user_id', uid)
-      .in('practice_id', ids)
-      .gte('logged_date', startIso)
-      .lte('logged_date', endIso);
-    if (lerr) throw lerr;
-
-    // construir mapa fecha->done por práctica
-    const byPractice: Record<string, Record<string, boolean>> = {};
-    for (const p of list) byPractice[p.id] = {};
-    for (const r of (logs ?? []) as Array<{ practice_id: string; logged_date: string }>) {
-      byPractice[r.practice_id][r.logged_date] = true; // existencia = done
-    }
-
+    // construir mapa semana a partir de entradas por práctica
     const weekMarks: Record<string, WeekMark[]> = {};
     const weekCounts: Record<string, number> = {};
     for (const p of list) {
+      const entries = (await this.http.get<Array<{ id: string; practiceId: string; loggedDate: string }>>(`${this.apiBase}/api/practices/entrada/${p.id}`).toPromise()) ?? [];
       const marks: WeekMark[] = this.weekDates().map(d => {
         const ymd = d.toISOString().slice(0, 10);
-        return { date: ymd, done: !!byPractice[p.id][ymd] };
+        const done = entries.some(e => (e as any).logged_date === ymd || (e as any).loggedDate === ymd);
+        return { date: ymd, done };
       });
       weekMarks[p.id] = marks;
       weekCounts[p.id] = marks.reduce((s, m) => s + (m.done ? 1 : 0), 0);
@@ -190,22 +166,14 @@ export default class PracticePage {
       const uid = this.uid()!;
       // si es reemplazo, guardamos y eliminamos la anterior
       const replacing = this.replacingId();
-
-      const { data, error } = await this.supabase.client
-        .from('healthy_practices') // <— tabla real
-        .insert({
-          user_id: uid,
-          practice_name: s.practice_name,
-          description: s.description,
-          icon: s.icon,
-          frequency_target: s.frequency_target ?? 7,
-          sort_order: s.sort_order ?? 999,
-          is_active: true,
-          // opcional: default_id: s.id,
-        })
-        .select('id')
-        .single();
-      if (error) throw error;
+      await this.http.post(`${this.apiBase}/api/practices/crear/${uid}`, {
+        practice_name: s.practice_name,
+        description: s.description,
+        icon: s.icon,
+        frequency_target: s.frequency_target ?? 7,
+        sort_order: s.sort_order ?? 999,
+        is_active: true,
+      }).toPromise();
 
       if (replacing) {
         await this.removePractice(replacing, { silent: true });
@@ -224,27 +192,13 @@ export default class PracticePage {
   async toggleToday(p: UserPractice) {
     try {
       this.saving.set(true);
-      const uid = this.uid()!;
       const today = this.todayLocal().toISOString().slice(0, 10);
-
-      // ¿existe registro de hoy?
-      const { data: existing } = await this.supabase.client
-        .from('practice_logs')
-        .select('id')
-        .eq('user_id', uid)
-        .eq('practice_id', p.id)     // antes: user_practice_id
-        .eq('logged_date', today)    // antes: date
-        .maybeSingle();
-
+      const entries = (await this.http.get<Array<{ id: string; loggedDate: string }>>(`${this.apiBase}/api/practices/entrada/${p.id}`).toPromise()) ?? [];
+      const existing = entries.find(e => (e as any).logged_date === today || (e as any).loggedDate === today);
       if (existing?.id) {
-        // toggle: si existe => borrar; si no existe => insertar
-        await this.supabase.client.from('practice_logs').delete().eq('id', existing.id);
+        await this.http.delete(`${this.apiBase}/api/practices/borrarentrada/${existing.id}`).toPromise();
       } else {
-        await this.supabase.client.from('practice_logs').insert({
-          user_id: uid,
-          practice_id: p.id,
-          logged_date: today,
-        });
+        await this.http.post(`${this.apiBase}/api/practices/crearentrada/${p.id}`, { logged_date: today }).toPromise();
       }
 
       await this.loadMyPracticesAndLogs();
@@ -259,11 +213,7 @@ export default class PracticePage {
   async removePractice(id: string, opts: { silent?: boolean } = {}) {
     try {
       if (!opts.silent && !confirm('¿Eliminar esta práctica? Se mantendrá el historial.')) return;
-
-      await this.supabase.client
-        .from('healthy_practices') // <— tabla real
-        .update({ is_active: false })
-        .eq('id', id);
+      await this.http.delete(`${this.apiBase}/api/practices/eliminar/soft/${id}`).toPromise();
 
       await this.loadMyPracticesAndLogs();
     } catch (e: any) {
