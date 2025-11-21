@@ -14,7 +14,7 @@ import { firstValueFrom, combineLatest, of } from 'rxjs';
 import { debounceTime, distinctUntilChanged, switchMap, catchError, map, startWith } from 'rxjs/operators';
 import { MetricsService, MetricsResponse } from '../../services/metrics.service';
 
-type Sex = 'female' | 'male';
+type Sex = 'FEMALE' | 'MALE';
 
 @Component({
   standalone: true,
@@ -64,7 +64,7 @@ export default class RegisterPage {
     email: this.fb.control('', { validators: [Validators.required, Validators.email] }),
     password: this.fb.control('', { validators: [Validators.required, Validators.minLength(6)] }),
     dob: this.fb.control('', { validators: [Validators.required] }),
-    sex: this.fb.control<Sex>('female', { validators: [Validators.required] }),
+    sex: this.fb.control<Sex>('FEMALE', { validators: [Validators.required] }),
     height_cm: this.fb.control(170, { validators: [Validators.required, Validators.min(80), Validators.max(230)] }),
     weight_kg: this.fb.control(70,  { validators: [Validators.required, Validators.min(25), Validators.max(250)] }),
   });

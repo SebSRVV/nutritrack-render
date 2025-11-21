@@ -1,33 +1,19 @@
-import { ChangeDetectionStrategy, Component, computed, effect, inject, signal } from '@angular/core';
-import { CommonModule } from '@angular/common';
+import { ChangeDetectionStrategy, Component, computed, effect, inject, signal, PLATFORM_ID } from '@angular/core';
+import { CommonModule, isPlatformBrowser } from '@angular/common';
 import { ReactiveFormsModule, NonNullableFormBuilder, Validators } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
-import { SupabaseService } from '../../core/supabase.service';
-import { AuthService } from '../../services/auth.service';
 import {
   LucideAngularModule,
   UserIcon, MailIcon, CalendarIcon, RulerIcon, ScaleIcon, HeartPulseIcon,
   LogOutIcon, SaveIcon, InfoIcon, Trash2Icon, ShieldAlertIcon, IdCardIcon, ActivityIcon
 } from 'lucide-angular';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { AuthService } from '../../services/auth.service';
+import { SupabaseService } from '../../core/supabase.service';
 
-type Sex = 'female' | 'male';
+type Sex = 'FEMALE' | 'MALE';
 type ActivityLevel = 'sedentary' | 'moderate' | 'very_active';
 type DietType = 'low_carb' | 'caloric_deficit' | 'surplus';
-
-type ProfileRow = {
-  id: string;
-  username: string | null;
-  dob: string | null;
-  sex: Sex | null;
-  height_cm: number | null;
-  weight_kg: number | null;
-  bmi: number | null;
-  activity_level: ActivityLevel;
-  diet_type: DietType;
-  created_at: string;
-  updated_at: string;
-};
 
 function calcAge(dobStr?: string): number | null {
   if (!dobStr) return null;
@@ -74,9 +60,12 @@ export default class ProfilePage {
   readonly ActivityIcon = ActivityIcon;
 
   private fb = inject(NonNullableFormBuilder);
+  private auth = inject(AuthService);
   private supabase = inject(SupabaseService);
   private auth = inject(AuthService);
   private router = inject(Router);
+  private platformId = inject(PLATFORM_ID);
+  private readonly isBrowser = isPlatformBrowser(this.platformId);
 
   // UI state
   loading = signal(true);
@@ -93,11 +82,11 @@ export default class ProfilePage {
 
   // Datos del perfil
   username = signal<string>('');
-  sex = signal<Sex>('female');
+  sex = signal<Sex>('FEMALE');
   dob  = signal<string>('');
 
-  activityLevel = signal<ActivityLevel>('moderate');         // default DB
-  dietType = signal<DietType>('caloric_deficit');            // default DB
+  activityLevel = signal<ActivityLevel>('moderate');
+  dietType = signal<DietType>('caloric_deficit');
 
   form = this.fb.group({
     height_cm: this.fb.control(170, { validators: [Validators.required, Validators.min(80), Validators.max(230)] }),
@@ -149,7 +138,11 @@ export default class ProfilePage {
       if (w > 250) this.wCtrl.setValue(250, { emitEvent: false });
     });
 
-    this.init();
+    if (this.isBrowser) {
+      this.init();
+    } else {
+      this.loading.set(false);
+    }
   }
 
   // ==== DATA ====
@@ -157,21 +150,45 @@ export default class ProfilePage {
     try {
       this.loading.set(true);
 
-      // 1) auth info (email/ult. acceso) + uid
-      const { data: ures, error: uerr } = await this.supabase.client.auth.getUser();
-      if (uerr) throw uerr;
-      const user = ures.user;
-      if (!user) {
+      // 1) auth info desde backend (email + id)
+      const me = await this.auth.me().toPromise();
+      if (!me) {
         await this.router.navigate(['/login'], { queryParams: { auth: 'required', redirect: '/profile' } });
         return;
       }
-      this.userId.set(user.id);
-      this.email.set(user.email ?? '');
-      this.createdAt.set(user.created_at ?? '');
-      this.lastSignInAt.set((user.last_sign_in_at as string) ?? '');
+      this.userId.set(me.id ?? '');
+      this.email.set(me.email ?? '');
+      // createdAt/lastSignInAt pueden no venir del backend; déjalos en blanco si no existen
+      this.createdAt.set(me.created_at ?? '');
+      this.lastSignInAt.set(me.last_sign_in_at ?? '');
 
-      // 2) perfil desde la tabla
-      await this.loadProfile();
+      // 2) perfil desde Supabase (como antes)
+      const uid = me.id;
+      let profileRow: any = null;
+      if (uid) {
+        // Esquema: profiles.id referencia auth.users(id). No existe user_id.
+        const q1 = await this.supabase.client.from('profiles').select('*').eq('id', uid).maybeSingle();
+        if (q1.data) profileRow = q1.data;
+      }
+
+      // set defaults si no hay fila
+      const username = profileRow?.username ?? '';
+      const sexRaw = (profileRow?.sex ?? 'FEMALE') as string;
+      const sexUp = (sexRaw || '').toUpperCase() === 'MALE' ? 'MALE' : 'FEMALE';
+      const dob = profileRow?.dob ?? '';
+      const height_cm = Number(profileRow?.height_cm ?? 170);
+      const weight_kg = Number(profileRow?.weight_kg ?? 70);
+      const activity = profileRow?.activity_level ?? 'moderate';
+      const diet = profileRow?.diet_type ?? 'caloric_deficit';
+
+      this.username.set(username);
+      this.sex.set(sexUp as Sex);
+      this.dob.set(dob);
+      this.form.patchValue({ height_cm, weight_kg }, { emitEvent: true });
+      this.heightVal.set(height_cm);
+      this.weightVal.set(weight_kg);
+      this.activityLevel.set(activity);
+      this.dietType.set(diet);
     } catch (e: any) {
       this.serverError.set(e?.message ?? 'No se pudo cargar tu perfil.');
     } finally {
@@ -179,24 +196,7 @@ export default class ProfilePage {
     }
   }
 
-  private async loadProfile() {
-    const p: any = await this.auth.profile().toPromise();
-    // Pinta cabecera/personales
-    this.username.set(p?.username ?? '');
-    this.sex.set(((p?.sex ?? 'female') as string).toLowerCase() as Sex);
-    this.dob.set(p?.dob ?? '');
-
-    // Form/editores
-    const h = Number(p?.height_cm ?? 170);
-    const w = Number(p?.weight_kg ?? 70);
-    this.form.patchValue({ height_cm: h, weight_kg: w }, { emitEvent: true });
-    this.heightVal.set(h);
-    this.weightVal.set(w);
-
-    // Preferencias
-    this.activityLevel.set((p?.activity_level ?? 'moderate') as any);
-    this.dietType.set((p?.diet_type ?? 'caloric_deficit') as any);
-  }
+  private async loadProfile() { return; }
 
   setActivity(v: ActivityLevel){ this.activityLevel.set(v); }
   setDiet(v: DietType){ this.dietType.set(v); }
@@ -211,22 +211,33 @@ export default class ProfilePage {
     const v = this.form.getRawValue();
 
     try {
-      // Guardar vía backend
-      const mappedDiet: 'caloric_deficit' | 'maintenance' | 'surplus' =
-        this.dietType() === 'low_carb' ? 'caloric_deficit' : (this.dietType() as any);
-
-      await this.auth.updateProfile({
+      const uid = this.userId();
+      const payload: any = {
         username: this.username(),
-        sex: (this.sex() === 'female' ? 'FEMALE' : 'MALE'),
+        // Persistir en minúsculas por CHECK (female|male)
+        sex: (this.sex() === 'MALE' ? 'male' : 'female'),
+        dob: this.dob(),
         height_cm: v.height_cm,
         weight_kg: v.weight_kg,
         dob: this.dob() || undefined,
         activity_level: this.activityLevel(),
-        diet_type: mappedDiet,
-      }).toPromise();
+        diet_type: this.dietType()
+      };
+
+      // upsert en Supabase por id; si no existe, inserta (sin user_id)
+      let updated = false;
+      if (uid) {
+        const up1 = await this.supabase.client.from('profiles').update(payload).eq('id', uid).select('id');
+        updated = (up1.data?.length ?? 0) > 0;
+        if (!updated) {
+          await this.supabase.client.from('profiles').insert([{ ...payload, id: uid }]);
+        }
+      }
 
       this.successMessage.set('Cambios guardados correctamente.');
-      await this.loadProfile();
+      if (this.isBrowser) {
+        await this.init();
+      }
     } catch (e: any) {
       this.serverError.set(e?.message ?? 'No se pudo guardar.');
     } finally {
@@ -243,12 +254,11 @@ export default class ProfilePage {
     this.deleting.set(true);
     this.serverError.set(null);
     try {
-      const { error } = await this.supabase.client.functions.invoke('delete-user', { body: { userId: this.userId() } });
-      if (error) throw error;
-      await this.supabase.client.auth.signOut();
+      await this.auth.deleteAccount(true).toPromise();
+      this.auth.logout();
       await this.router.navigateByUrl('/login');
     } catch (e: any) {
-      this.serverError.set(e?.message ?? 'No se pudo eliminar la cuenta. Verifica la Edge Function "delete-user".');
+      this.serverError.set(e?.message ?? 'No se pudo eliminar la cuenta.');
     } finally {
       this.deleting.set(false);
       this.showDeleteModal.set(false);
@@ -256,7 +266,7 @@ export default class ProfilePage {
   }
 
   async logout() {
-    await this.supabase.client.auth.signOut();
+    this.auth.logout();
     this.router.navigateByUrl('/login');
   }
 }

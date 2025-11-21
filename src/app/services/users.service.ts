@@ -3,15 +3,15 @@ import { HttpClient } from '@angular/common/http';
 import { environment } from '../../environments/environment';
 import { Observable } from 'rxjs';
 
-export interface UserProfile { id: string; email: string; /* ... */ }
+export interface UserProfile { id: string; email: string; username?: string | null; sex?: 'FEMALE'|'MALE'|null; height_cm?: number|null; weight_kg?: number|null; dob?: string|null; }
 
 @Injectable({ providedIn: 'root' })
 export class UsersService {
-  private base = environment.apiBaseUrl; // p.ej., https://<render>.onrender.com
+  private base = environment.apiBaseUrl;
 
   constructor(private http: HttpClient) {}
 
   getMe(): Observable<UserProfile> {
-    return this.http.get<UserProfile>(`${this.base}/api/users/me`);
+    return this.http.get<UserProfile>(`${this.base}/api/auth/me`);
   }
 }
