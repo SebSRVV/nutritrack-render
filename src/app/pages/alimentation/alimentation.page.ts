@@ -287,9 +287,11 @@ export default class AlimentationPage implements AfterViewInit, OnDestroy {
 
       this.uploadPct.set(100);
       setTimeout(() => this.uploadPct.set(0), 600);
+      this.showToast('Imagen subida', 'ok');
     } catch (e: any) {
       this.analysisErr.set(e?.message ?? 'No se pudo subir la imagen.');
       this.removeImage(); // limpiar preview si falló
+      this.showToast(this.analysisErr()!, 'err');
     } finally {
       this.uploading.set(false);
     }
@@ -307,6 +309,7 @@ export default class AlimentationPage implements AfterViewInit, OnDestroy {
     this.previewSize.set('');
     this.uploadPct.set(0);
     this.revokePreview();
+    this.showToast('Imagen quitada', 'ok');
   }
 
   // ---- API: analizar (Edge Function ai-analyze) ----
@@ -380,8 +383,10 @@ export default class AlimentationPage implements AfterViewInit, OnDestroy {
       a.meal_type = this.mealType();
 
       this.analysis.set(a);
+      this.showToast('Análisis listo', 'ok');
     } catch (e: any) {
       this.analysisErr.set(e?.message ?? 'No se pudo analizar.');
+      this.showToast(this.analysisErr()!, 'err');
     } finally {
       this.analyzing.set(false);
     }
@@ -443,17 +448,19 @@ export default class AlimentationPage implements AfterViewInit, OnDestroy {
     });
     // limpiar inputs
     this.text.set(''); this.analysis.set(null); this.removeImage();
+    this.showToast('Registro guardado', 'ok');
   }
 
   async addManual(calories: number) {
     calories = Math.max(0, Math.round(calories));
-    if (!calories || !(this.text().trim())) return;
+    if (!calories || !(this.text().trim())) { this.showToast('Ingresa descripción y kcal válidas', 'err'); return; }
     await this.addLog({
       description: this.text().trim(),
       calories, protein_g: null, carbs_g: null, fat_g: null,
       meal_type: this.mealType(),
     });
     this.text.set(''); this.analysis.set(null);
+    this.showToast('Registro guardado', 'ok');
   }
 
   /** Abrir modal de ingreso manual (sin prompt nativo) */

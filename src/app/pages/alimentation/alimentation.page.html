@@ -101,19 +101,14 @@
             </div>
           </div>
           <div class="actions">
-            <button class="btn" type="button" (click)="analyze()" [disabled]="analyzing()">Analizar con IA</button>
+            <button class="btn" type="button" (click)="analyze()">Analizar con IA</button>
           </div>
         </div>
       </div>
 
       <div class="row-actions">
-        <button class="btn" (click)="analyze()" [disabled]="analyzing() || !(text().trim() || imgPublicUrl())">
-          <lucide-icon [img]="PlusIcon"></lucide-icon>
-          {{ analyzing() ? 'Analizando…' : 'Analizar con IA' }}
-        </button>
-        <button class="btn ghost" (click)="openManualPrompt()" [disabled]="!(text().trim())">
-          Agregar manual
-        </button>
+        <button class="btn" (click)="analyze()">Analizar con IA</button>
+        <button class="btn ghost" (click)="openManualPrompt()">Agregar manual</button>
       </div>
 
       <!-- Resultado análisis -->
@@ -238,9 +233,7 @@
 
       <footer class="modal-foot">
         <button class="btn ghost" type="button" (click)="closeManual()">Cancelar</button>
-        <button class="btn" type="button" [disabled]="manualSaving() || manualPreview().length===0" (click)="saveManualEntries()">
-          {{ manualSaving() ? 'Guardando…' : 'Guardar' }}
-        </button>
+        <button class="btn" type="button" (click)="saveManualEntries()">{{ manualSaving() ? 'Guardando…' : 'Guardar' }}</button>
       </footer>
     </div>
   </div>
