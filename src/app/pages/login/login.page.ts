@@ -5,6 +5,7 @@ import { Router, RouterLink } from '@angular/router';
 import { LucideAngularModule, ArrowLeftIcon, MailIcon, LockIcon } from 'lucide-angular';
 import { trigger, transition, style, animate, query, stagger, group } from '@angular/animations';
 import { AuthService } from '../../services/auth.service';
+import { SupabaseService } from '../../core/supabase.service';
 
 @Component({
   standalone: true,
@@ -37,6 +38,7 @@ export default class LoginPage {
   private auth = inject(AuthService);
   private router = inject(Router);
   private platformId = inject(PLATFORM_ID);
+  private supabase = inject(SupabaseService);
 
   animReady = signal(false);
   submitting = signal(false);
@@ -75,6 +77,36 @@ export default class LoginPage {
     } catch (e: any) {
       const msg = e?.error?.message || e?.message || 'Error al iniciar sesión.';
       this.serverError.set(/invalid|credenciales/i.test(msg) ? 'Credenciales inválidas.' : msg);
+    } finally {
+      this.submitting.set(false);
+    }
+  }
+
+  async forgotPassword() {
+    this.serverError.set(null);
+    this.successMessage.set(null);
+
+    const emailCtrl = this.form.controls.email;
+    emailCtrl.markAsTouched();
+    if (emailCtrl.invalid) {
+      this.serverError.set('Ingresa un correo válido para recuperar tu contraseña.');
+      return;
+    }
+
+    if (!isPlatformBrowser(this.platformId)) {
+      this.serverError.set('La recuperación de contraseña solo está disponible en el navegador.');
+      return;
+    }
+
+    this.submitting.set(true);
+    const email = emailCtrl.value;
+
+    try {
+      const { error } = await this.supabase.client.auth.resetPasswordForEmail(email);
+      if (error) throw error;
+      this.successMessage.set('Si el correo existe, te enviamos un enlace para restablecer la contraseña.');
+    } catch (e: any) {
+      this.serverError.set(e?.message ?? 'No se pudo enviar el correo de recuperación.');
     } finally {
       this.submitting.set(false);
     }

@@ -9,7 +9,6 @@ import {
 } from 'lucide-angular';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { AuthService } from '../../services/auth.service';
-import { SupabaseService } from '../../core/supabase.service';
 
 type Sex = 'FEMALE' | 'MALE';
 type ActivityLevel = 'sedentary' | 'moderate' | 'very_active';
@@ -61,7 +60,6 @@ export default class ProfilePage {
 
   private fb = inject(NonNullableFormBuilder);
   private auth = inject(AuthService);
-  private supabase = inject(SupabaseService);
   private router = inject(Router);
   private platformId = inject(PLATFORM_ID);
   private readonly isBrowser = isPlatformBrowser(this.platformId);
@@ -149,9 +147,8 @@ export default class ProfilePage {
     try {
       this.loading.set(true);
 
-      // 1) auth info desde backend (email + id)
       const me = await this.auth.me().toPromise();
-      if (!me) {
+      if (!me || !me.id) {
         await this.router.navigate(['/login'], { queryParams: { auth: 'required', redirect: '/profile' } });
         return;
       }
@@ -160,25 +157,14 @@ export default class ProfilePage {
       // createdAt/lastSignInAt pueden no venir del backend; déjalos en blanco si no existen
       this.createdAt.set(me.created_at ?? '');
       this.lastSignInAt.set(me.last_sign_in_at ?? '');
-
-      // 2) perfil desde Supabase (como antes)
-      const uid = me.id;
-      let profileRow: any = null;
-      if (uid) {
-        // Esquema: profiles.id referencia auth.users(id). No existe user_id.
-        const q1 = await this.supabase.client.from('profiles').select('*').eq('id', uid).maybeSingle();
-        if (q1.data) profileRow = q1.data;
-      }
-
-      // set defaults si no hay fila
-      const username = profileRow?.username ?? '';
-      const sexRaw = (profileRow?.sex ?? 'FEMALE') as string;
-      const sexUp = (sexRaw || '').toUpperCase() === 'MALE' ? 'MALE' : 'FEMALE';
-      const dob = profileRow?.dob ?? '';
-      const height_cm = Number(profileRow?.height_cm ?? 170);
-      const weight_kg = Number(profileRow?.weight_kg ?? 70);
-      const activity = profileRow?.activity_level ?? 'moderate';
-      const diet = profileRow?.diet_type ?? 'caloric_deficit';
+      const username = me.username ?? '';
+      const sexRaw = (me.sex ?? 'FEMALE').toString();
+      const sexUp = sexRaw.toUpperCase() === 'MALE' ? 'MALE' : 'FEMALE';
+      const dob = me.dob ? String(me.dob) : '';
+      const height_cm = Number(me.height_cm ?? 170) || 170;
+      const weight_kg = Number(me.weight_kg ?? 70) || 70;
+      const activity = (me.activity_level ?? 'moderate') as ActivityLevel;
+      const diet = (me.diet_type ?? 'caloric_deficit') as DietType;
 
       this.username.set(username);
       this.sex.set(sexUp as Sex);
@@ -210,28 +196,17 @@ export default class ProfilePage {
     const v = this.form.getRawValue();
 
     try {
-      const uid = this.userId();
-      const payload: any = {
-        username: this.username(),
-        // Persistir en minúsculas por CHECK (female|male)
-        sex: (this.sex() === 'MALE' ? 'male' : 'female'),
+      const payload = {
+        username: this.username() || null,
+        sex: this.sex(),
         height_cm: v.height_cm,
         weight_kg: v.weight_kg,
-        dob: this.dob() || undefined,
+        dob: this.dob() || null,
         activity_level: this.activityLevel(),
         diet_type: this.dietType()
       };
 
-      // upsert en Supabase por id; si no existe, inserta (sin user_id)
-      let updated = false;
-      if (uid) {
-        const up1 = await this.supabase.client.from('profiles').update(payload).eq('id', uid).select('id');
-        updated = (up1.data?.length ?? 0) > 0;
-        if (!updated) {
-          await this.supabase.client.from('profiles').insert([{ ...payload, id: uid }]);
-        }
-      }
-
+      await this.auth.updateProfile(payload).toPromise();
       this.successMessage.set('Cambios guardados correctamente.');
       if (this.isBrowser) {
         await this.init();

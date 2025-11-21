@@ -6,8 +6,9 @@ import {
   inject,
   signal,
   HostListener,
+  PLATFORM_ID,
 } from '@angular/core';
-import { CommonModule } from '@angular/common';
+import { CommonModule, isPlatformBrowser } from '@angular/common';
 import { Router } from '@angular/router';
 import {
   HttpClient,
@@ -39,6 +40,7 @@ import { lastValueFrom } from 'rxjs';
 
 import { environment } from '../../../environments/environment';
 import { SupabaseService } from '../../core/supabase.service';
+import { GoalsService } from '../../services/goals.service';
 
 /** ===== Tipos ===== */
 type Goal = {
@@ -129,13 +131,16 @@ export class GoalsPage {
   private readonly router = inject(Router);
   private readonly http = inject(HttpClient);
   private readonly supabase = inject(SupabaseService);
+  private readonly goalsService = inject(GoalsService);
+  private readonly platformId = inject(PLATFORM_ID);
+  private readonly isBrowser = isPlatformBrowser(this.platformId);
 
   // ===== Estado base =====
   loading = signal(true);
   err = signal<string | null>(null);
 
-  // TODO: reemplazar por el uid real cuando enganches auth
-  uid = signal<string | null>('2a8091bb-cc76-4bea-8369-1cc60c1258ad');
+  // UID del usuario autenticado
+  uid = signal<string | null>(null);
 
   goals = signal<Goal[]>([]);
 
@@ -294,8 +299,20 @@ export class GoalsPage {
 
   // ===== Ciclo =====
   async ngOnInit() {
+    if (!this.isBrowser) {
+      this.loading.set(false);
+      return;
+    }
     try {
       this.loading.set(true);
+      
+      // Obtener el UID del usuario autenticado
+      const userId = await this.goalsService.getCurrentUserId();
+      if (!userId) {
+        throw new Error('No se pudo obtener el usuario autenticado. Por favor, inicia sesión.');
+      }
+      this.uid.set(userId);
+      
       await this.loadGoalsAndProgress();
     } catch (e: any) {
       this.err.set(e?.message ?? 'No se pudo cargar Metas.');

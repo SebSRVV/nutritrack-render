@@ -1,5 +1,5 @@
-import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
-import { CommonModule } from '@angular/common';
+import { ChangeDetectionStrategy, Component, computed, inject, signal, PLATFORM_ID } from '@angular/core';
+import { CommonModule, isPlatformBrowser } from '@angular/common';
 import { RouterLink } from '@angular/router';
 import { SupabaseService } from '../../core/supabase.service';
 import {
@@ -47,6 +47,8 @@ export default class WaterPage {
   readonly SettingsIcon = SettingsIcon;
 
   private supabase = inject(SupabaseService);
+  private platformId = inject(PLATFORM_ID);
+  private isBrowser = isPlatformBrowser(this.platformId);
 
   // ===== Estado base =====
   loading = signal(true);
@@ -100,6 +102,10 @@ export default class WaterPage {
 
   // ====== Ciclo de vida ======
   async ngOnInit() {
+    if (!this.isBrowser) {
+      this.loading.set(false);
+      return;
+    }
     try {
       this.loading.set(true);
 

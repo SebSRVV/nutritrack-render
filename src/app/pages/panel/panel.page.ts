@@ -140,6 +140,10 @@ export default class PanelPage implements AfterViewInit {
 
   // ======= Lifecycle =======
   async ngOnInit() {
+    if (!this.isBrowser) {
+      this.loading.set(false);
+      return;
+    }
     try {
       this.loading.set(true);
 

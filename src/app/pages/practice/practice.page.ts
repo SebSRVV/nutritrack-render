@@ -1,5 +1,5 @@
-import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
-import { CommonModule } from '@angular/common';
+import { ChangeDetectionStrategy, Component, computed, inject, signal, PLATFORM_ID } from '@angular/core';
+import { CommonModule, isPlatformBrowser } from '@angular/common';
 import { FormBuilder, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { SupabaseService } from '../../core/supabase.service';
 import { PracticesService, PracticeDTO, PracticeEntryDTO, PracticeWeekStatsDTO } from '../../services/practices.service';
@@ -50,6 +50,8 @@ export default class PracticePage {
   private supabase = inject(SupabaseService);
   private practiceService = inject(PracticesService);
   private fb = inject(FormBuilder);
+  private platformId = inject(PLATFORM_ID);
+  private isBrowser = isPlatformBrowser(this.platformId);
 
   loading = signal(true);
   saving = signal(false);
@@ -106,6 +108,10 @@ export default class PracticePage {
   }
 
   async ngOnInit() {
+    if (!this.isBrowser) {
+      this.loading.set(false);
+      return;
+    }
     try {
       this.loading.set(true);
 

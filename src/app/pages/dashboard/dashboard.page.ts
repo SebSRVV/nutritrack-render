@@ -3,9 +3,10 @@ import {
   Component,
   computed,
   inject,
-  signal
+  signal,
+  PLATFORM_ID
 } from '@angular/core';
-import { CommonModule } from '@angular/common';
+import { CommonModule, isPlatformBrowser } from '@angular/common';
 import { RouterLink } from '@angular/router';
 import { HttpClient, HttpClientModule, HttpErrorResponse } from '@angular/common/http';
 import { lastValueFrom } from 'rxjs';
@@ -51,6 +52,8 @@ export default class DashboardPage {
   private auth = inject(AuthService);
   private apiBase = environment.apiBaseUrl;
   private supabase = inject(SupabaseService);
+  private platformId = inject(PLATFORM_ID);
+  private isBrowser = isPlatformBrowser(this.platformId);
 
   // Estado base
   loading = signal(true);
@@ -237,6 +240,10 @@ export default class DashboardPage {
 
   // ---------- Carga ----------
   async ngOnInit() {
+    if (!this.isBrowser) {
+      this.loading.set(false);
+      return;
+    }
     try {
       this.loading.set(true);
 

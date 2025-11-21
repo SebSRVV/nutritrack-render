@@ -15,14 +15,19 @@ function isBackend(url: string): boolean {
 const PUBLIC_PATHS = [
   '/api/auth/login',
   '/api/auth/register',
+  '/api/auth/refresh',
   '/api/metrics',
 ];
 
 function isPublicEndpoint(urlStr: string): boolean {
-  let base = 'http://localhost';
-  try { base = (globalThis as any).window?.location?.origin ?? base; } catch {}
-  const url = new URL(urlStr, base);
-  return PUBLIC_PATHS.some(p => url.pathname.startsWith(p));
+  try {
+    const base = typeof window !== 'undefined' ? window.location.origin : 'https://backend-nutritrack.onrender.com';
+    const url = new URL(urlStr, base);
+    return PUBLIC_PATHS.some(p => url.pathname.startsWith(p));
+  } catch {
+    // Si falla el parsing, asumimos que no es público
+    return false;
+  }
 }
 
 // Estado de refresco (compartido entre peticiones concurrentes)

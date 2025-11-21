@@ -36,6 +36,10 @@
           <small class="err" *ngIf="form.controls.password.touched && form.controls.password.invalid">Mínimo 6 caracteres.</small>
         </div>
 
+        <div style="text-align:right; margin-top:0.25rem;">
+          <a href="#" (click)="forgotPassword(); $event.preventDefault()">¿Olvidaste tu contraseña?</a>
+        </div>
+
         <button class="btn btn-primary full" [disabled]="submitting()">
           {{ submitting() ? 'Accediendo…' : 'Entrar' }}
         </button>
