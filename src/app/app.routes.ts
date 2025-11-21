@@ -2,8 +2,7 @@ import { Routes } from '@angular/router';
 import { authGuard } from './core/auth.guard';
 
 export const routes: Routes = [
-  { path: '', loadComponent: () => import('./pages/home/home.page') },   // Home
-  // deja preparadas rutas para tus botones:
+  { path: '', loadComponent: () => import('./pages/home/home.page') },
   { path: 'register', loadComponent: () => import('./pages/register/register.page') },
   {
     path: 'login',
@@ -15,12 +14,36 @@ export const routes: Routes = [
     loadComponent: () => import('./pages/profile/profile.page').then(m => m.default),
     canActivate: [authGuard]
   },
-  { path: 'dashboard', loadComponent: () => import('./pages/dashboard/dashboard.page'), canActivate: [authGuard] },
-  { path: 'goals', loadComponent: () => import('./pages/goals/goals.page').then(m => m.GoalsPage), canActivate: [authGuard] },
-  { path: 'alimentation', loadComponent: () => import('./pages/alimentation/alimentation.page'), canActivate: [authGuard] },
-  { path: 'water', loadComponent: () => import('./pages/water/water.page'), canActivate: [authGuard] },
-  { path: 'panel', loadComponent: () => import('./pages/panel/panel.page'), canActivate: [authGuard] },
-  { path: 'practices', loadComponent: () => import('./pages/practice/practice.page').then(m => m.default), canActivate: [authGuard] },
+  { 
+    path: 'dashboard', 
+    loadComponent: () => import('./pages/dashboard/dashboard.page'), 
+    canActivate: [authGuard] 
+  },
+  { 
+    path: 'goals', 
+    loadComponent: () => import('./pages/goals/goals.page').then(m => m.GoalsPage), 
+    canActivate: [authGuard]
+  },
+  { 
+    path: 'alimentation', 
+    loadComponent: () => import('./pages/alimentation/alimentation.page'), 
+    canActivate: [authGuard] 
+  },
+  { 
+    path: 'water', 
+    loadComponent: () => import('./pages/water/water.page'), 
+    canActivate: [authGuard]
+  },
+  { 
+    path: 'panel', 
+    loadComponent: () => import('./pages/panel/panel.page'), 
+    canActivate: [authGuard]
+  },
+  { 
+    path: 'practices', 
+    loadComponent: () => import('./pages/practice/practice.page').then(m => m.default), 
+    canActivate: [authGuard]
+  },
 
   { path: '**', redirectTo: '' },
 ];

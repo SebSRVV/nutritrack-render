@@ -19,6 +19,10 @@
             "ssr": {
               "entry": "src/server.ts"
             },
+            "prerender": {
+              "discoverRoutes": false,
+              "routesFile": "prerender-routes.txt"
+            },
             "polyfills": [
               "zone.js"
             ],
