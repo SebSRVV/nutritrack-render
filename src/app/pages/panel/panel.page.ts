@@ -10,6 +10,7 @@ import {
   PieChartIcon, BarChart3Icon, LineChartIcon
 } from 'lucide-angular';
 import { SupabaseService } from '../../core/supabase.service';
+import { AuthService } from '../../services/auth.service';
 
 /* ===== Tipos ===== */
 type MealType = 'breakfast' | 'lunch' | 'dinner' | 'snack';
@@ -52,6 +53,7 @@ export default class PanelPage implements AfterViewInit {
   readonly LineChartIcon = LineChartIcon;
 
   private supabase = inject(SupabaseService);
+  private auth = inject(AuthService);
   private platformId = inject(PLATFORM_ID);
   private isBrowser = isPlatformBrowser(this.platformId);
 
@@ -147,7 +149,40 @@ export default class PanelPage implements AfterViewInit {
       if (!uid) throw new Error('Sesión no válida');
       this.uid.set(uid);
 
-      // Kcal recomendadas
+      // Kcal recomendadas (cálculo local Mifflin–St Jeor si hay datos)
+      try {
+        const me: any = await this.auth.me().toPromise();
+        const sexRaw = (me?.sex ?? '').toString().toUpperCase();
+        const sex: 'MALE'|'FEMALE'|null = sexRaw === 'MALE' || sexRaw === 'FEMALE' ? sexRaw as any : null;
+        const height = Number(me?.height_cm ?? me?.heightCm ?? 0) || null;
+        const weight = Number(me?.weight_kg ?? me?.weightKg ?? 0) || null;
+        const dobStr: string | null = me?.dob ?? null;
+        const activityRaw = (me?.activity_level ?? me?.activityLevel ?? 'moderate').toString();
+        const dietRaw = (me?.diet_type ?? me?.dietType ?? 'caloric_deficit').toString();
+
+        const age = (() => {
+          if (!dobStr) return null;
+          const d = new Date(dobStr); const t = new Date();
+          let a = t.getFullYear() - d.getFullYear();
+          const m = t.getMonth() - d.getMonth();
+          if (m < 0 || (m === 0 && t.getDate() < d.getDate())) a--;
+          return Math.max(a, 0);
+        })();
+
+        const activityFactor = (a: string) => a==='sedentary'?1.2: a==='very_active'?1.725:1.55;
+        const kcalAdj = (d: string) => d==='surplus'?1.10: d==='caloric_deficit'?0.85:1.00;
+
+        if (sex && height && weight && age !== null) {
+          const bmr = sex === 'MALE'
+            ? 10*weight + 6.25*height - 5*age + 5
+            : 10*weight + 6.25*height - 5*age - 161;
+          const tdee = bmr * activityFactor(activityRaw);
+          const rec = Math.round(tdee * kcalAdj(dietRaw));
+          if (Number.isFinite(rec) && rec > 0) this.recKcal.set(rec);
+        }
+      } catch {}
+
+      // Fallback: cargar meta desde Supabase si existe
       const { data: rec } = await this.supabase.client
         .from('user_recommendations').select('goal_kcal').eq('user_id', uid).maybeSingle();
       if (rec?.goal_kcal) this.recKcal.set(Number(rec.goal_kcal));

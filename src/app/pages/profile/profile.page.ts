@@ -62,6 +62,7 @@ export default class ProfilePage {
   private fb = inject(NonNullableFormBuilder);
   private auth = inject(AuthService);
   private supabase = inject(SupabaseService);
+  private auth = inject(AuthService);
   private router = inject(Router);
   private platformId = inject(PLATFORM_ID);
   private readonly isBrowser = isPlatformBrowser(this.platformId);
@@ -218,7 +219,7 @@ export default class ProfilePage {
         dob: this.dob(),
         height_cm: v.height_cm,
         weight_kg: v.weight_kg,
-        bmi: this.bmi(),
+        dob: this.dob() || undefined,
         activity_level: this.activityLevel(),
         diet_type: this.dietType()
       };
