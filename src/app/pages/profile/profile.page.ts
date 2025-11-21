@@ -62,7 +62,6 @@ export default class ProfilePage {
   private fb = inject(NonNullableFormBuilder);
   private auth = inject(AuthService);
   private supabase = inject(SupabaseService);
-  private auth = inject(AuthService);
   private router = inject(Router);
   private platformId = inject(PLATFORM_ID);
   private readonly isBrowser = isPlatformBrowser(this.platformId);
@@ -216,7 +215,6 @@ export default class ProfilePage {
         username: this.username(),
         // Persistir en minúsculas por CHECK (female|male)
         sex: (this.sex() === 'MALE' ? 'male' : 'female'),
-        dob: this.dob(),
         height_cm: v.height_cm,
         weight_kg: v.weight_kg,
         dob: this.dob() || undefined,

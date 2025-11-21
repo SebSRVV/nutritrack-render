@@ -23,10 +23,7 @@ import {
   UtensilsCrossedIcon,
   SettingsIcon
 } from 'lucide-angular';
-import { HttpClient, HttpParams } from '@angular/common/http';
 import { AuthService } from '../../services/auth.service';
-import { environment } from '../../../environments/environment';
-import { SupabaseService } from '../../core/supabase.service';
 
 type Sex = 'FEMALE' | 'MALE';
 type ActivityLevel = 'sedentary' | 'moderate' | 'very_active';
@@ -54,7 +51,6 @@ export default class DashboardPage {
   private auth = inject(AuthService);
   private apiBase = environment.apiBaseUrl;
   private supabase = inject(SupabaseService);
-  private http = inject(HttpClient);
 
   // Estado base
   loading = signal(true);

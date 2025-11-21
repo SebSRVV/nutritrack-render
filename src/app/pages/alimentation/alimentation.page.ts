@@ -140,7 +140,7 @@ export default class AlimentationPage implements AfterViewInit, OnDestroy {
     try {
       this.loading.set(true);
 
-      const me = await firstValueFrom(this.auth.me<any>());
+      const me = await firstValueFrom(this.auth.me());
       if (!me?.id) throw new Error('Sesión no válida');
       this.uid.set(me.id);
 
