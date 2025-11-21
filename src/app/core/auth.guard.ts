@@ -7,7 +7,8 @@ import { AuthService } from '../services/auth.service';
 export class _Auth {
   auth = inject(AuthService);
   router = inject(Router);
-  @Inject(PLATFORM_ID) platformId!: Object;
+  constructor(@Inject(PLATFORM_ID) private platformId: Object) {}
+
   async can(): Promise<boolean> {
     // SSR-safe: en servidor no hay localStorage ni navegación
     if (!isPlatformBrowser(this.platformId)) return true;
@@ -19,6 +20,6 @@ export class _Auth {
 }
 
 export const authGuard: CanActivateFn = async () => {
-  const g = new _Auth();
+  const g = inject(_Auth);
   return g.can();
 };
