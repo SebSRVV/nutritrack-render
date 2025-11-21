@@ -27,7 +27,7 @@ import {
   TrophyIcon,
   CalendarDaysIcon,
   ChevronLeftIcon,
-  ChevronRightIcon, // <--- Importante para navegar meses
+  ChevronRightIcon, 
   TargetIcon,
   Settings2Icon,
   ListChecksIcon,
@@ -146,7 +146,7 @@ export class GoalsPage {
   uiEditGoalId = signal<string | null>(null);
 
   // Navegación de Calendario
-  viewDate = signal(new Date()); // Fecha visible en el calendario
+  viewDate = signal(new Date());
 
   // Mapa de colores para consistencia
   private colorMap = new Map<string, number>();
@@ -205,7 +205,7 @@ export class GoalsPage {
     );
     const startGrid = startOfWeekMonday(firstOfMonth);
 
-    // Para marcar el día "hoy" real (independiente del mes que veas)
+    // Para marcar el día 
     const realToday = new Date();
 
     const days: { date: Date; inMonth: boolean; isToday: boolean }[] = [];
@@ -239,8 +239,6 @@ export class GoalsPage {
   }
 
   // ===== Funciones de Calendario y Colores =====
-
-  // Cambiar de mes (+1 o -1)
   changeMonth(delta: number) {
     const current = this.viewDate();
     const next = new Date(
@@ -639,3 +637,4 @@ export class GoalsPage {
     this.router.navigate(['/dashboard']);
   }
 }
+//done
