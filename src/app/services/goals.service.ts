@@ -1,33 +1,10 @@
+// src/app/services/goals.service.ts
 import { Injectable, inject } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
-import { Observable, from } from 'rxjs';
-import { switchMap, catchError } from 'rxjs/operators';
+import { Observable, from, of } from 'rxjs';
+import { switchMap } from 'rxjs/operators';
 import { environment } from '../../environments/environment';
 import { SupabaseService } from '../core/supabase.service';
-
-export interface GoalRequest {
-  goal_name: string;
-  goal_description?: string;
-  target_value?: number;
-  target_unit?: string;
-  current_value?: number;
-  deadline?: string;
-  is_active?: boolean;
-}
-
-export interface GoalResponse {
-  id: string;
-  user_id: string;
-  goal_name: string;
-  goal_description?: string;
-  target_value?: number;
-  target_unit?: string;
-  current_value?: number;
-  deadline?: string;
-  is_active: boolean;
-  created_at: string;
-  updated_at: string;
-}
 
 @Injectable({ providedIn: 'root' })
 export class GoalsService {
@@ -35,90 +12,72 @@ export class GoalsService {
   private supabase = inject(SupabaseService);
   private baseUrl = `${environment.apiBaseUrl}/api/goals`;
 
-  /**
-   * Obtiene el token de Supabase para autenticación
-   */
+  /** Obtener token de forma robusta (SSR-safe) */
   private async getToken(): Promise<string | null> {
     try {
+      // 1) Intentar vía sesión normal
       const { data: { session } } = await this.supabase.client.auth.getSession();
-      return session?.access_token ?? null;
-    } catch (e) {
-      console.error('Error obteniendo sesión:', e);
+      if (session?.access_token) return session.access_token;
+
+      // 2) Intentar vía getUser() cuando getSession() falla en SSR
+      const { data: udata } = await this.supabase.client.auth.getUser();
+      const token = (udata as any)?.session?.access_token ?? null;
+      return token;
+    } catch (err) {
+      console.warn('No se pudo obtener token:', err);
       return null;
     }
   }
 
-  /**
-   * Obtiene el ID del usuario actual
-   */
+  /** Obtener UID robustamente */
   async getCurrentUserId(): Promise<string | null> {
-    const { data: { session } } = await this.supabase.client.auth.getSession();
-    return session?.user?.id ?? null;
+    try {
+      const { data: { session } } = await this.supabase.client.auth.getSession();
+      if (session?.user?.id) return session.user.id;
+
+      const { data } = await this.supabase.client.auth.getUser();
+      return data?.user?.id ?? null;
+    } catch {
+      return null;
+    }
   }
 
-  /**
-   * Crea headers con autorización
-   */
+  /** Headers seguros */
   private async createAuthHeaders(): Promise<{ [key: string]: string }> {
     const token = await this.getToken();
-    const headers: { [key: string]: string } = {
-      'Content-Type': 'application/json'
-    };
-    if (token) {
-      headers['Authorization'] = `Bearer ${token}`;
-    }
+    const headers: any = { 'Content-Type': 'application/json' };
+
+    if (token) headers['Authorization'] = `Bearer ${token}`;
     return headers;
   }
 
-  /**
-   * Lista todas las metas del usuario
-   */
-  listGoals(userId: string): Observable<GoalResponse[]> {
+  listGoals(userId: string): Observable<any[]> {
     const params = new HttpParams().set('userId', userId);
     return from(this.createAuthHeaders()).pipe(
-      switchMap(headers => 
-        this.http.get<GoalResponse[]>(this.baseUrl, { headers, params })
-      )
+      switchMap(headers => this.http.get<any[]>(this.baseUrl, { headers, params }))
     );
   }
 
-  /**
-   * Crea una nueva meta
-   */
-  createGoal(userId: string, body: GoalRequest): Observable<GoalResponse> {
+  createGoal(userId: string, body: any): Observable<any> {
     const params = new HttpParams().set('userId', userId);
     return from(this.createAuthHeaders()).pipe(
-      switchMap(headers => 
-        this.http.post<GoalResponse>(this.baseUrl, body, { headers, params })
-      )
+      switchMap(headers => this.http.post(this.baseUrl, body, { headers, params }))
     );
   }
 
-  /**
-   * Actualiza una meta existente
-   */
-  updateGoal(goalId: string, userId: string, body: GoalRequest): Observable<GoalResponse> {
+  updateGoal(goalId: string, userId: string, body: any): Observable<any> {
     const params = new HttpParams().set('userId', userId);
     const url = `${this.baseUrl}/${goalId}`;
     return from(this.createAuthHeaders()).pipe(
-      switchMap(headers => 
-        this.http.patch<GoalResponse>(url, body, { headers, params })
-      )
+      switchMap(headers => this.http.put(url, body, { headers, params }))
     );
   }
 
-  /**
-   * Elimina una meta (soft delete por defecto)
-   */
   deleteGoal(goalId: string, userId: string, mode: 'soft' | 'hard' = 'soft'): Observable<any> {
-    const params = new HttpParams()
-      .set('userId', userId)
-      .set('mode', mode);
+    const params = new HttpParams().set('userId', userId).set('mode', mode);
     const url = `${this.baseUrl}/${goalId}`;
     return from(this.createAuthHeaders()).pipe(
-      switchMap(headers => 
-        this.http.delete(url, { headers, params })
-      )
+      switchMap(headers => this.http.delete(url, { headers, params }))
     );
   }
 }

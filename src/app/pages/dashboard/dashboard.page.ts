@@ -178,9 +178,12 @@ export default class DashboardPage {
   private async getToken(): Promise<string | null> {
     try {
       const { data: { session } } = await this.supabase.client.auth.getSession();
-      return session?.access_token ?? null;
+      if (session?.access_token) return session.access_token;
+
+      const { data } = await this.supabase.client.auth.getUser();
+      return (data as any)?.session?.access_token ?? null;
     } catch (e) {
-      console.error('Error obteniendo sesión de Supabase:', e);
+      console.warn('No se pudo obtener token:', e);
       return null;
     }
   }

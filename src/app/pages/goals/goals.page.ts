@@ -309,9 +309,10 @@ export class GoalsPage {
       // Obtener el UID del usuario autenticado
       const userId = await this.goalsService.getCurrentUserId();
       if (!userId) {
-        throw new Error('No se pudo obtener el usuario autenticado. Por favor, inicia sesión.');
+        throw new Error('No se pudo obtener el usuario actual. Inicia sesión.');
       }
       this.uid.set(userId);
+
       
       await this.loadGoalsAndProgress();
     } catch (e: any) {
