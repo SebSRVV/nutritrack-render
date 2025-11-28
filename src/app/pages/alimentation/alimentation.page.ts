@@ -20,6 +20,7 @@ type MealCategory =
   | 'lácteos' | 'grasas' | 'legumbres' | 'ultraprocesados'
   | 'bebidas' | 'otros';
 
+
 type MealLog = {
   id: string;
   description: string;
